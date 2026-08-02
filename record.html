@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>开始记录 · 迹</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-page="record">
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar"></aside>
+      <div class="content">
+        <header class="topbar" id="topbar"></header>
+        <main class="main">
+          <div class="section-head">
+            <div><div class="eyebrow">NEW MEMORY</div><h1 class="page-title">记录一段新经历</h1><p class="page-subtitle">不用整理得很完整，先把现场留下来。AI 会逐项阅读你提供的内容。</p></div>
+          </div>
+          <div class="form-layout">
+            <section class="form-panel">
+              <form id="record-form" novalidate>
+                <div id="form-content">
+                  <div class="form-heading">
+                    <div><h2>事件信息</h2><p>标题、分类和时间可以暂时留空。</p></div>
+                    <span class="required-note">文件 / 照片 / 描述至少一项</span>
+                  </div>
+                  <div class="field-row">
+                    <div class="field">
+                      <label class="field-label" for="event-title">事件标题 <span class="hint">可由 AI 生成</span></label>
+                      <input id="event-title" type="text" placeholder="例如：第一次担任社团招新负责人" />
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="event-date">活动时间 <span class="hint">可稍后补充</span></label>
+                      <input id="event-date" type="date" />
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="event-category">活动分类 <span class="hint">可由 AI 判断</span></label>
+                    <div class="category-inline"><select id="event-category"><option value="">请先选择</option></select><button class="mini-add" id="add-category" type="button" title="创建新分类">＋</button></div>
+                  </div>
+                  <div class="field">
+                    <label class="field-label">相关文档 <span class="hint">PDF / DOC / DOCX，单个不超过 20 MB</span></label>
+                    <label class="dropzone" for="document-input"><span class="drop-icon">↥</span><strong>点击选择，或将文档拖到这里</strong><span>比赛材料、证书、活动方案都可以</span></label>
+                    <input class="file-input" id="document-input" type="file" multiple accept=".pdf,.doc,.docx" />
+                    <div class="file-list" id="document-list"></div>
+                  </div>
+                  <div class="field">
+                    <label class="field-label">照片 <span class="hint">JPG / PNG / HEIC，最多 12 张</span></label>
+                    <label class="dropzone" for="photo-input"><span class="drop-icon">▧</span><strong>选择活动照片</strong><span>原图会作为经历资料保存</span></label>
+                    <input class="file-input" id="photo-input" type="file" multiple accept="image/*" />
+                    <div class="file-list" id="photo-list"></div>
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="event-description">我想记下的内容 <span class="hint">不必写得完整</span></label>
+                    <textarea id="event-description" placeholder="发生了什么？你做了什么？哪个瞬间印象最深？"></textarea>
+                    <div class="voice-row"><button type="button" class="voice-button" id="voice-button" title="开始录音">●</button><span class="voice-status" id="voice-status">语音转文字 · 最长 10 分钟</span></div>
+                  </div>
+                  <div class="form-actions"><span class="analyze-note">提交后将依次分析，不会同时占用同一 Key</span><a class="btn btn-quiet" href="/index.html">取消</a><button class="btn btn-primary" type="submit">保存并让 AI 整理 →</button></div>
+                </div>
+                <div class="progress-wrap" id="analysis-progress">
+                  <h3>正在整理这段经历</h3>
+                  <div class="progress-step" data-progress="0"><span class="step-status">1</span><span>读取文字描述与基本信息</span></div>
+                  <div class="progress-step" data-progress="1"><span class="step-status">2</span><span>分析文档内容</span></div>
+                  <div class="progress-step" data-progress="2"><span class="step-status">3</span><span>理解照片与现场线索</span></div>
+                  <div class="progress-step" data-progress="3"><span class="step-status">4</span><span>生成标题、分类与完整事件描述</span></div>
+                  <div class="success-panel" id="success-panel"><strong>记录成功，已经放进你的经历库</strong><span id="success-note"></span><div class="hero-actions"><a class="btn btn-primary" id="view-created" href="/library.html">查看这条记录</a><a class="btn btn-secondary" href="/record.html">继续记录</a></div></div>
+                </div>
+              </form>
+            </section>
+            <aside class="side-panel">
+              <h3>接下来会发生什么</h3><p>AI 只会根据你留下的内容整理事实；不确定的信息会明确标出。</p>
+              <div class="side-step"><span class="side-step-num">01</span><div><strong>逐项读取</strong><span>文字、文件与图片会依次分析，避免请求冲突</span></div></div>
+              <div class="side-step"><span class="side-step-num">02</span><div><strong>补全结构</strong><span>生成缺失标题、建议分类，并尝试识别时间</span></div></div>
+              <div class="side-step"><span class="side-step-num">03</span><div><strong>保留意义</strong><span>形成详尽描述，提炼你的行动、困难与变化</span></div></div>
+              <div class="privacy-note">你上传的内容仅用于整理个人经历。API Key 只保存在当前浏览器中，可随时在设置里删除。</div>
+            </aside>
+          </div>
+        </main>
+      </div>
+    </div>
+    <div id="global-modals"></div><div class="toast" id="toast"></div><script type="module" src="/app.js"></script>
+  </body>
+</html>

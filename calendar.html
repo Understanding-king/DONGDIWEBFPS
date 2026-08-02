@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>日历视图 · 迹</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-page="calendar">
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar"></aside>
+      <div class="content">
+        <header class="topbar" id="topbar"></header>
+        <main class="main calendar-main">
+          <header class="calendar-page-head">
+            <div class="eyebrow">MEMORY CALENDAR</div>
+            <h1 class="page-title">日历视图</h1>
+            <p class="page-subtitle">按时间查看你的经历轨迹，每一天都值得被记录。</p>
+          </header>
+          <div class="calendar-layout">
+            <section class="calendar-picker" aria-label="日期选择">
+              <div class="calendar-picker-head">
+                <div class="calendar-nav">
+                  <button class="calendar-icon-button" id="calendar-prev" type="button" title="上个月" aria-label="上个月"><i data-lucide="chevron-left"></i></button>
+                  <button class="calendar-icon-button" id="calendar-next" type="button" title="下个月" aria-label="下个月"><i data-lucide="chevron-right"></i></button>
+                  <strong id="calendar-month-label"></strong>
+                </div>
+                <button class="calendar-today" id="calendar-today" type="button">今天</button>
+              </div>
+              <div class="calendar-week-row" aria-hidden="true"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
+              <div class="calendar-date-grid" id="calendar-grid"></div>
+              <div class="calendar-legend"><i></i><span>有记录</span></div>
+            </section>
+            <section class="calendar-agenda" aria-live="polite">
+              <header class="agenda-head"><div><h2 id="agenda-date"></h2><p id="agenda-count"></p></div></header>
+              <div class="agenda-section"><h3>当天事件</h3><div class="agenda-events" id="agenda-events"></div></div>
+              <div class="agenda-section agenda-notes-section"><h3>当天随手记</h3><div class="agenda-notes" id="agenda-notes"></div></div>
+            </section>
+          </div>
+        </main>
+      </div>
+    </div>
+    <div id="global-modals"></div><div class="toast" id="toast"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
