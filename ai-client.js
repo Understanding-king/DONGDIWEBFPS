@@ -32,7 +32,7 @@ export async function analyzeTextWithDeepSeek(apiKey, prompt) {
   return data.choices?.[0]?.message?.content || '';
 }
 
-export async function chatWithDeepSeek(apiKey, messages, records, notes = []) {
+export async function chatWithDeepSeek(apiKey, messages, records, notes = [], selectedRecordIds = []) {
   const recordContext = (records || []).map((record) => ({
     id: record.id,
     title: record.title,
@@ -52,7 +52,7 @@ export async function chatWithDeepSeek(apiKey, messages, records, notes = []) {
     messages: [
       {
         role: 'system',
-        content: '你是学生的长期经历助手。你可以同时参考用户的正式事件经历和随手记来理解用户，但只有用户明确需要筛选、回顾或改写经历时才推荐正式事件记录。不要把随手记编造成正式事件，也不要为随手记返回 recordId。需求不清楚时，一次只追问一个最有帮助的问题。请输出 JSON：{"reply":"给用户看的自然语言回复","intent":"chat|retrieve|rewrite","recordIds":["匹配的正式事件 id"]}。正式事件经历如下：' + JSON.stringify(recordContext) + '。用户随手记如下：' + JSON.stringify(noteContext)
+        content: '你是 MyArchive 的长期经历助手。你可以同时参考用户的正式事件经历和随手记来理解用户，但只有用户明确需要筛选、回顾或改写经历时才推荐正式事件记录。不要把随手记编造成正式事件，也不要为随手记返回 recordId。用户在本轮明确引用的事件必须优先回答，并允许一次引用多个事件。需求不清楚时，一次只追问一个最有帮助的问题。如果用户想新建或记录一段经历，先自然回应并简短复述已经听到的信息，再用温和、容易展开的方式一次只问一个具体问题；按“发生了什么、用户做了什么、结果或影响”逐步了解，已经说过的不要重复询问。禁止一次列出标题、主题、角色、收获等信息清单，也不要像填写问卷一样连续发问。当用户要求 Word 或 PDF 时，先正常完成内容，再返回可下载文档描述。请输出 JSON：{"reply":"给用户看的自然语言回复","intent":"chat|retrieve|rewrite|document","recordIds":["匹配的正式事件 id"],"document":{"format":"word|pdf","title":"文档标题","content":"完整文档正文"}|null}。本轮明确引用的事件 id：' + JSON.stringify(selectedRecordIds) + '。正式事件经历如下：' + JSON.stringify(recordContext) + '。用户随手记如下：' + JSON.stringify(noteContext)
       },
       ...messages.slice(-12)
     ],
@@ -72,8 +72,9 @@ export async function synthesizeEventForRetrieval(apiKey, event, analyses = []) 
     '3. 适合未来按人物、活动、物品、行为、主题、情绪和目标检索；',
     '4. 不评价学生，不使用“体现了、展现了、说明了……能力、这段经历可以”等评语或建议；',
     '5. 不要求用户补充信息，缺失项放进 uncertainties；正文控制在 120 至 350 个汉字。',
+    '6. 活动日期已由前端按“用户手动选择 > 文字中的明确日期证据 > 默认今天”的规则确定。必须原样返回输入 date；当 dateSource 为 default-today 时，不得仅凭模糊措辞改成其他日期，也不要把日期列为不确定项。',
     '可选分类：' + event.categories.join('、'),
-    '事件基本信息：' + JSON.stringify({ title:event.title, category:event.category, date:event.date, description:event.description }),
+    '事件基本信息：' + JSON.stringify({ title:event.title, category:event.category, date:event.date, dateSource:event.dateSource, description:event.description }),
     '各输入项的独立分析：' + JSON.stringify(analyses)
   ].join('\n');
   return analyzeTextWithDeepSeek(apiKey, prompt);
@@ -109,6 +110,53 @@ export async function transcribeAudioWithGlm(apiKey, audioBlob, filename = 'expe
   const transcript = data.text || data.result || data.transcript || data.choices?.[0]?.message?.content;
   if (!transcript) throw new Error('接口没有返回转写文字');
   return transcript;
+}
+
+function wavSegment(source, dataStart, dataEnd, format) {
+  const payload = source.slice(dataStart, dataEnd);
+  const buffer = new ArrayBuffer(44 + payload.byteLength);
+  const view = new DataView(buffer);
+  const write = (offset, value) => Array.from(value).forEach((char, index) => view.setUint8(offset + index, char.charCodeAt(0)));
+  write(0, 'RIFF');
+  view.setUint32(4, 36 + payload.byteLength, true);
+  write(8, 'WAVE'); write(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, format.channels, true);
+  view.setUint32(24, format.sampleRate, true);
+  view.setUint32(28, format.byteRate, true);
+  view.setUint16(32, format.blockAlign, true);
+  view.setUint16(34, format.bitsPerSample, true);
+  write(36, 'data');
+  view.setUint32(40, payload.byteLength, true);
+  new Uint8Array(buffer, 44).set(new Uint8Array(payload));
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
+export async function transcribeAudioSequentially(apiKey, wavBlob, options = {}) {
+  const source = await wavBlob.arrayBuffer();
+  const view = new DataView(source);
+  if (source.byteLength < 44 || String.fromCharCode(...new Uint8Array(source, 0, 4)) !== 'RIFF') {
+    return transcribeAudioWithGlm(apiKey, wavBlob, options.filename || 'experience-recording.wav');
+  }
+  const channels = view.getUint16(22, true);
+  const sampleRate = view.getUint32(24, true);
+  const byteRate = view.getUint32(28, true);
+  const blockAlign = view.getUint16(32, true);
+  const bitsPerSample = view.getUint16(34, true);
+  const bytesPerSegment = Math.max(blockAlign, Math.floor(byteRate * 29 / blockAlign) * blockAlign);
+  const dataStart = 44;
+  const dataLength = Math.max(0, Math.min(view.getUint32(40, true), source.byteLength - dataStart));
+  const total = Math.max(1, Math.ceil(dataLength / bytesPerSegment));
+  const transcripts = [];
+  for (let index = 0; index < total; index += 1) {
+    const start = dataStart + index * bytesPerSegment;
+    const end = Math.min(dataStart + dataLength, start + bytesPerSegment);
+    const segment = wavSegment(source, start, end, { channels, sampleRate, byteRate, blockAlign, bitsPerSample });
+    if (options.onProgress) options.onProgress(index + 1, total);
+    transcripts.push(await transcribeAudioWithGlm(apiKey, segment, 'recording-' + String(index + 1).padStart(2, '0') + '-of-' + String(total).padStart(2, '0') + '.wav'));
+  }
+  return transcripts.map((part) => String(part || '').trim()).filter(Boolean).join('\n');
 }
 
 // Media requests are intentionally awaited one by one so the same key is never

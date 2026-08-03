@@ -9,7 +9,7 @@ root.outerHTML = `
         <article class="home-page">
           <section class="home-hero" aria-labelledby="home-title">
             <div class="home-hero-copy">
-              <div class="home-kicker"><i data-lucide="sparkles"></i><span>MEMORY ATLAS · 迹</span></div>
+              <div class="home-kicker"><i data-lucide="sparkles"></i><span>MYARCHIVE · PERSONAL MEMORY</span></div>
               <h1 id="home-title"><span class="home-title-line">把今天的经历，</span><span class="home-title-line">留给未来的自己。</span></h1>
               <p>今天留下的每一道轨迹，都会在未来重新照亮你。</p>
               <dl class="home-stats" aria-label="经历统计">
@@ -28,7 +28,6 @@ root.outerHTML = `
                 </div>
                 <nav class="sr-only" id="home-atlas-record-links" aria-label="事件星球记录列表"></nav>
               </div>
-              <span class="planet-caption"><i></i>经历持续连接中</span>
             </div>
 
             <nav class="home-actions" aria-label="主要功能">

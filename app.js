@@ -1,4 +1,13 @@
-import { analyzeMediaWithGlm, analyzeTextWithDeepSeek, chatWithDeepSeek, synthesizeEventForRetrieval, transcribeAudioWithGlm } from './ai-client.js';
+import { analyzeMediaWithGlm, analyzeTextWithDeepSeek, chatWithDeepSeek, synthesizeEventForRetrieval, transcribeAudioSequentially } from './ai-client.js';
+import {
+  applyCloudCollectionPatch,
+  isCloudConfigured,
+  markCloudMigrationComplete,
+  migrateArchiveToCloud,
+  readCloudArchive,
+  readCloudMigrationState,
+  upsertCloudCategories
+} from './cloud-store.js';
 import {
   ArrowRight,
   ArrowUp,
@@ -8,10 +17,14 @@ import {
   ChevronRight,
   Clock3,
   createIcons,
+  Database,
+  Download,
   FileSearch,
+  FileText,
   Home,
   LibraryBig,
   MessageCircle,
+  MessageSquareMore,
   Mic,
   NotebookPen,
   Orbit,
@@ -22,14 +35,22 @@ import {
   Search,
   Settings2,
   Sparkles,
-  UserRound,
-  WandSparkles
+  WandSparkles,
+  X
 } from 'lucide';
 
 const RECORDS_KEY = 'ji-records-v1';
 const SETTINGS_KEY = 'ji-settings-v1';
 const CHAT_KEY = 'ji-chat-v2';
 const NOTES_KEY = 'ji-notes-v1';
+const NOTES_SPREAD_MIGRATION_KEY = 'ji-notes-spread-v1';
+const NOTES_SPREAD_BACKUP_KEY = 'ji-notes-backup-before-spread-v1';
+const SHARED_STORAGE_MIGRATION_KEY = 'ji-shared-file-storage-v1';
+const SHARED_RECORDS_PENDING_KEY = 'ji-shared-records-pending-v1';
+const SHARED_NOTES_PENDING_KEY = 'ji-shared-notes-pending-v1';
+const CLOUD_STORAGE_MIGRATION_KEY = 'ji-supabase-shared-storage-v1';
+const ARCHIVE_API_PATH = '/api/archive-data';
+const MEDIA_API_PREFIX = '/api/archive-media/';
 
 const DEFAULT_CATEGORIES = ['学术竞赛','体育竞赛','综合竞赛','学术活动','探索类活动','研学活动','领导力活动','研究和探究','艺术活动','实习','随手记'];
 const SEED_RECORDS = [
@@ -55,7 +76,76 @@ export function getRecords() {
   localStorage.setItem(RECORDS_KEY, JSON.stringify(SEED_RECORDS));
   return SEED_RECORDS.slice();
 }
-function saveRecords(records) { localStorage.setItem(RECORDS_KEY, JSON.stringify(records)); }
+function readStoredCollection(key) {
+  try {
+    var saved = JSON.parse(localStorage.getItem(key));
+    return Array.isArray(saved) ? saved : null;
+  } catch (error) { return null; }
+}
+function collectionPatch(previous, next) {
+  var before = new Map((previous || []).filter(function (item) { return item && item.id; }).map(function (item) { return [String(item.id), item]; }));
+  var after = new Map((next || []).filter(function (item) { return item && item.id; }).map(function (item) { return [String(item.id), item]; }));
+  var deleteIds = Array.from(before.keys()).filter(function (id) { return !after.has(id); });
+  var upsert = Array.from(after.entries()).filter(function (entry) { return !before.has(entry[0]) || JSON.stringify(before.get(entry[0])) !== JSON.stringify(entry[1]); }).map(function (entry) { return entry[1]; });
+  return { upsert:upsert, deleteIds:deleteIds };
+}
+function mergeCollectionPatches(first, second) {
+  var upserts = new Map(); var deleted = new Set();
+  [first, second].forEach(function (patch) {
+    (patch && Array.isArray(patch.deleteIds) ? patch.deleteIds : []).forEach(function (id) { var key = String(id); deleted.add(key); upserts.delete(key); });
+    (patch && Array.isArray(patch.upsert) ? patch.upsert : []).forEach(function (item) { if (!item || !item.id) return; var key = String(item.id); upserts.set(key, item); deleted.delete(key); });
+  });
+  return { upsert:Array.from(upserts.values()), deleteIds:Array.from(deleted) };
+}
+function readPendingPatch(key) {
+  try { return JSON.parse(localStorage.getItem(key)) || { upsert:[], deleteIds:[] }; } catch (error) { return { upsert:[], deleteIds:[] }; }
+}
+function patchHasChanges(patch) { return Boolean((patch.upsert || []).length || (patch.deleteIds || []).length); }
+var sharedWriteQueue = Promise.resolve();
+var cloudWriteQueue = Promise.resolve();
+function queueArchivePatch(collection, patch, pendingKey) {
+  if (!patchHasChanges(patch)) return Promise.resolve();
+  var pending = mergeCollectionPatches(readPendingPatch(pendingKey), patch);
+  localStorage.setItem(pendingKey, JSON.stringify(pending));
+  sharedWriteQueue = sharedWriteQueue.catch(function () {}).then(async function () {
+    var rawPending = localStorage.getItem(pendingKey); if (!rawPending) return;
+    var currentPatch = JSON.parse(rawPending); var payload = {};
+    payload[collection + 'Patch'] = currentPatch;
+    var response = await fetch(ARCHIVE_API_PATH, { method:'PATCH', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(payload), keepalive:true });
+    if (!response.ok) throw new Error('共享存储写入失败（' + response.status + '）');
+    var archive = await response.json();
+    if (localStorage.getItem(pendingKey) === rawPending) {
+      localStorage.removeItem(pendingKey);
+      if (Array.isArray(archive[collection])) localStorage.setItem(collection === 'records' ? RECORDS_KEY : NOTES_KEY, JSON.stringify(archive[collection]));
+    }
+  });
+  return sharedWriteQueue.catch(function (error) { console.warn('[MyArchive] Shared file write failed:', error); });
+}
+function cacheCloudArchive(archive) {
+  localStorage.setItem(RECORDS_KEY, JSON.stringify(Array.isArray(archive.records) ? archive.records : []));
+  localStorage.setItem(NOTES_KEY, JSON.stringify(Array.isArray(archive.notes) ? archive.notes : []));
+  var settings = getSettings();
+  settings.categories = Array.isArray(archive.categories) ? archive.categories : [];
+  saveSettings(settings);
+}
+function queueCloudCollectionPatch(collection, patch) {
+  if (!patchHasChanges(patch)) return Promise.resolve();
+  cloudWriteQueue = cloudWriteQueue.catch(function () {}).then(async function () {
+    await applyCloudCollectionPatch(collection, patch);
+    cacheCloudArchive(await readCloudArchive());
+  });
+  return cloudWriteQueue;
+}
+async function saveRecords(records) {
+  var previous = readStoredCollection(RECORDS_KEY) || [];
+  if (isCloudConfigured()) {
+    try { await queueCloudCollectionPatch('records', collectionPatch(previous, records)); }
+    catch (error) { showToast(error.message); throw error; }
+    return;
+  }
+  localStorage.setItem(RECORDS_KEY, JSON.stringify(records));
+  return queueArchivePatch('records', collectionPatch(previous, records), SHARED_RECORDS_PENDING_KEY);
+}
 function getNotes() {
   try {
     var saved = JSON.parse(localStorage.getItem(NOTES_KEY));
@@ -63,17 +153,122 @@ function getNotes() {
   } catch (e) {}
   return [];
 }
-function saveNotes(notes) { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); }
+async function saveNotes(notes) {
+  var previous = readStoredCollection(NOTES_KEY) || [];
+  if (isCloudConfigured()) {
+    try { await queueCloudCollectionPatch('notes', collectionPatch(previous, notes)); }
+    catch (error) { showToast(error.message); throw error; }
+    return;
+  }
+  localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+  return queueArchivePatch('notes', collectionPatch(previous, notes), SHARED_NOTES_PENDING_KEY);
+}
+async function readProjectArchive() {
+  var response = await fetch(ARCHIVE_API_PATH, { headers:{ Accept:'application/json' }, cache:'no-store' });
+  if (!response.ok) throw new Error('本地项目数据读取失败（' + response.status + '）');
+  var archive = await response.json();
+  return {
+    records:Array.isArray(archive.records) ? archive.records : [],
+    notes:Array.isArray(archive.notes) ? archive.notes : []
+  };
+}
+async function patchSharedArchive(payload) {
+  var response = await fetch(ARCHIVE_API_PATH, { method:'PATCH', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(payload) });
+  if (!response.ok) throw new Error('共享存储迁移失败（' + response.status + '）');
+  return response.json();
+}
+async function syncArchiveFromCloud(localRecords, localNotes) {
+  try {
+    var migrated = false;
+    var migrationState = await readCloudMigrationState();
+    if (!migrationState) {
+      var projectArchive = await readProjectArchive();
+      var cloudArchive = await migrateArchiveToCloud(projectArchive, getSettings().categories || []);
+      var cloudRecordIds = new Set(cloudArchive.records.map(function (item) { return String(item.id); }));
+      var cloudNoteIds = new Set(cloudArchive.notes.map(function (item) { return String(item.id); }));
+      var allRecordsUploaded = projectArchive.records.every(function (item) { return cloudRecordIds.has(String(item.id)); });
+      var allNotesUploaded = projectArchive.notes.every(function (item) { return cloudNoteIds.has(String(item.id)); });
+      if (!allRecordsUploaded || !allNotesUploaded) {
+        throw new Error('云端数据数量与本地不一致，迁移标记未写入');
+      }
+      migrationState = {
+        completedAt:new Date().toISOString(),
+        records:projectArchive.records.length,
+        notes:projectArchive.notes.length
+      };
+      await markCloudMigrationComplete(migrationState);
+      migrated = true;
+    }
+    var archive = await readCloudArchive();
+    cacheCloudArchive(archive);
+    localStorage.setItem(CLOUD_STORAGE_MIGRATION_KEY, JSON.stringify(migrationState));
+    localStorage.removeItem(SHARED_RECORDS_PENDING_KEY);
+    localStorage.removeItem(SHARED_NOTES_PENDING_KEY);
+    migrateLegacyMedia(archive.records).catch(function (error) { console.warn('[MyArchive] Legacy media migration failed:', error); });
+    return { ready:true, mode:'cloud', migrated:migrated, records:archive.records.length, notes:archive.notes.length };
+  } catch (error) {
+    console.warn('[MyArchive] Supabase storage unavailable:', error);
+    if (!localRecords) localStorage.setItem(RECORDS_KEY, JSON.stringify(SEED_RECORDS));
+    if (!localNotes) localStorage.setItem(NOTES_KEY, '[]');
+    return { ready:false, mode:'cloud', error:error };
+  }
+}
+async function syncArchiveFromLocalProject(localRecords, localNotes) {
+  try {
+    var archive = await readProjectArchive(); var firstMigration = !localStorage.getItem(SHARED_STORAGE_MIGRATION_KEY); var payload = {};
+    var recordsPending = readPendingPatch(SHARED_RECORDS_PENDING_KEY); var notesPending = readPendingPatch(SHARED_NOTES_PENDING_KEY);
+    if (firstMigration && localRecords) {
+      var remoteRecordIds = new Set((archive.records || []).map(function (record) { return String(record.id); }));
+      var seedIds = new Set(SEED_RECORDS.map(function (record) { return record.id; }));
+      var recordsToMigrate = localRecords.filter(function (record) { return !seedIds.has(record.id) || !archive.records.length || remoteRecordIds.has(String(record.id)); });
+      recordsPending = mergeCollectionPatches(recordsPending, { upsert:recordsToMigrate, deleteIds:[] });
+    }
+    if (firstMigration && localNotes) notesPending = mergeCollectionPatches(notesPending, { upsert:localNotes, deleteIds:[] });
+    if (firstMigration && !localRecords && !(archive.records || []).length) recordsPending = mergeCollectionPatches(recordsPending, { upsert:SEED_RECORDS, deleteIds:[] });
+    if (patchHasChanges(recordsPending)) payload.recordsPatch = recordsPending;
+    if (patchHasChanges(notesPending)) payload.notesPatch = notesPending;
+    if (payload.recordsPatch || payload.notesPatch) archive = await patchSharedArchive(payload);
+    localStorage.setItem(RECORDS_KEY, JSON.stringify(Array.isArray(archive.records) ? archive.records : []));
+    localStorage.setItem(NOTES_KEY, JSON.stringify(Array.isArray(archive.notes) ? archive.notes : []));
+    localStorage.removeItem(SHARED_RECORDS_PENDING_KEY); localStorage.removeItem(SHARED_NOTES_PENDING_KEY);
+    localStorage.setItem(SHARED_STORAGE_MIGRATION_KEY, JSON.stringify({ completedAt:new Date().toISOString() }));
+    migrateLegacyMedia(localRecords || archive.records || []).catch(function (error) { console.warn('[MyArchive] Legacy media migration failed:', error); });
+    return { ready:true, mode:'local' };
+  } catch (error) {
+    console.warn('[MyArchive] Shared file storage unavailable:', error);
+    if (!localRecords) localStorage.setItem(RECORDS_KEY, JSON.stringify(SEED_RECORDS));
+    if (!localNotes) localStorage.setItem(NOTES_KEY, '[]');
+    return { ready:false, mode:'local', error:error };
+  }
+}
+async function syncArchiveFromProject() {
+  var localRecords = readStoredCollection(RECORDS_KEY); var localNotes = readStoredCollection(NOTES_KEY);
+  if (isCloudConfigured()) return syncArchiveFromCloud(localRecords, localNotes);
+  return syncArchiveFromLocalProject(localRecords, localNotes);
+}
 function localDateKey(value) {
   var date = value instanceof Date ? value : new Date(value);
   if (!Number.isFinite(date.getTime())) return '';
   return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
 }
 function noteDate(note) { return note.date || localDateKey(note.createdAt); }
+async function migrateClusteredNotes() {
+  if (localStorage.getItem(NOTES_SPREAD_MIGRATION_KEY)) return;
+  var notes = getNotes(); var groups = notes.reduce(function (result, note) { var date = noteDate(note); if (date) (result[date] || (result[date] = [])).push(note); return result; }, {}); var clusterDate = Object.keys(groups).sort(function (left, right) { return groups[right].length - groups[left].length; })[0]; var cluster = clusterDate && groups[clusterDate];
+  if (!cluster || cluster.length < 4) { localStorage.setItem(NOTES_SPREAD_MIGRATION_KEY, JSON.stringify({ completedAt:new Date().toISOString(), changed:0 })); return; }
+  localStorage.setItem(NOTES_SPREAD_BACKUP_KEY, JSON.stringify(notes));
+  var base = parseDateKey(clusterDate) || new Date(); var offsets = [1,3,6,10,15,21,29,38,49,62,77,94,113,135,160,188];
+  cluster.slice().sort(function (a, b) { return new Date(a.createdAt || 0) - new Date(b.createdAt || 0); }).forEach(function (note, index) { var explicit = explicitDateFromText(note.content, base); var target = explicit ? parseDateKey(explicit.date) : new Date(base.getFullYear(), base.getMonth(), base.getDate() - (offsets[index % offsets.length] + Math.floor(index / offsets.length) * 210)); var date = localDateKey(target); note.date = date; var original = new Date(note.createdAt || base); if (!Number.isFinite(original.getTime())) original = new Date(base); original.setFullYear(target.getFullYear(), target.getMonth(), target.getDate()); note.createdAt = original.toISOString(); });
+  await saveNotes(notes); localStorage.setItem(NOTES_SPREAD_MIGRATION_KEY, JSON.stringify({ completedAt:new Date().toISOString(), changed:cluster.length, sourceDate:clusterDate }));
+}
 function getSettings() {
   try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || { categories:[], deepseek:'', glm:'' }; } catch (e) { return { categories:[], deepseek:'', glm:'' }; }
 }
 function saveSettings(settings) { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
+async function saveCustomCategories(settings) {
+  if (isCloudConfigured()) await upsertCloudCategories(settings.categories || []);
+  saveSettings(settings);
+}
 function allCategories() { return DEFAULT_CATEGORIES.concat(getSettings().categories || []).filter(function (item, index, arr) { return arr.indexOf(item) === index; }); }
 function getCurrentPage() { return document.body.dataset.page || 'home'; }
 var mediaDbPromise;
@@ -88,21 +283,58 @@ function openMediaDb() {
   return mediaDbPromise;
 }
 async function storeMedia(file) {
-  var db = await openMediaDb(); var item = { id:'media-' + Date.now() + '-' + Math.random().toString(36).slice(2,8), name:file.name, type:file.type, size:file.size, blob:file };
-  await new Promise(function (resolve, reject) { var tx = db.transaction('uploads', 'readwrite'); tx.objectStore('uploads').put(item); tx.oncomplete = resolve; tx.onerror = function () { reject(tx.error); }; });
-  return { id:item.id, name:item.name, type:item.type, size:item.size };
+  var item = { id:'media-' + Date.now() + '-' + Math.random().toString(36).slice(2,8), name:file.name, type:file.type || 'application/octet-stream', size:file.size, blob:file };
+  try { return await uploadSharedMedia(item); }
+  catch (error) {
+    console.warn('[MyArchive] Shared media upload failed, using browser storage:', error);
+    var db = await openMediaDb();
+    await new Promise(function (resolve, reject) { var tx = db.transaction('uploads', 'readwrite'); tx.objectStore('uploads').put(item); tx.oncomplete = resolve; tx.onerror = function () { reject(tx.error); }; });
+    return { id:item.id, name:item.name, type:item.type, size:item.size };
+  }
 }
-async function getStoredMedia(id) {
+async function uploadSharedMedia(item) {
+  var response = await fetch(MEDIA_API_PREFIX + encodeURIComponent(item.id), { method:'PUT', headers:{ 'Content-Type':item.type || 'application/octet-stream', 'X-Archive-File-Name':encodeURIComponent(item.name || item.id) }, body:item.blob });
+  if (!response.ok) throw new Error('附件写入失败（' + response.status + '）');
+  return response.json();
+}
+async function getLocalStoredMedia(id) {
   var db = await openMediaDb();
   return new Promise(function (resolve, reject) { var req = db.transaction('uploads', 'readonly').objectStore('uploads').get(id); req.onsuccess = function () { resolve(req.result); }; req.onerror = function () { reject(req.error); }; });
+}
+async function getStoredMedia(id) {
+  try {
+    var response = await fetch(MEDIA_API_PREFIX + encodeURIComponent(id), { cache:'no-store' });
+    if (response.ok) {
+      var name = id; try { name = decodeURIComponent(response.headers.get('X-Archive-File-Name') || id); } catch {}
+      var blob = await response.blob(); return { id:id, name:name, type:blob.type, size:blob.size, blob:blob };
+    }
+    if (response.status !== 404) throw new Error('附件读取失败（' + response.status + '）');
+  } catch (error) { console.warn('[MyArchive] Shared media read failed:', error); }
+  var localItem = await getLocalStoredMedia(id);
+  if (localItem && localItem.blob) uploadSharedMedia(localItem).catch(function () {});
+  return localItem;
 }
 async function getMediaUrl(id) {
   var item = await getStoredMedia(id);
   return item && item.blob ? URL.createObjectURL(item.blob) : '';
 }
 async function deleteMedia(id) {
-  if (!id) return; var db = await openMediaDb();
+  if (!id) return;
+  try { await fetch(MEDIA_API_PREFIX + encodeURIComponent(id), { method:'DELETE' }); } catch (error) { console.warn('[MyArchive] Shared media delete failed:', error); }
+  var db = await openMediaDb();
   await new Promise(function (resolve, reject) { var tx = db.transaction('uploads', 'readwrite'); tx.objectStore('uploads').delete(id); tx.oncomplete = resolve; tx.onerror = function () { reject(tx.error); }; });
+}
+async function migrateLegacyMedia(records) {
+  var attachments = [];
+  (records || []).forEach(function (record) {
+    (record.files || []).concat(record.photos || []).forEach(function (item) { if (item && typeof item === 'object' && item.id && !attachments.some(function (saved) { return saved.id === item.id; })) attachments.push(item); });
+  });
+  await Promise.allSettled(attachments.map(async function (attachment) {
+    var existing = await fetch(MEDIA_API_PREFIX + encodeURIComponent(attachment.id), { method:'HEAD', cache:'no-store' });
+    if (existing.ok) return;
+    var localItem = await getLocalStoredMedia(attachment.id);
+    if (localItem && localItem.blob) await uploadSharedMedia(localItem);
+  }));
 }
 function showToast(message) {
   var toast = document.getElementById('toast'); if (!toast) return;
@@ -126,29 +358,33 @@ function navMarkup(active) {
   var items = [
     ['home','home','首页','/index.html'], ['record','pen-line','开始记录','/record.html'], ['library','library-big','我的记录','/library.html'], ['chat','message-circle','AI 对话','/chat.html'], ['calendar','calendar-days','日历','/calendar.html'], ['notes','notebook-pen','我的随手记','/notes.html'], ['atlas','orbit','事件星球','/atlas.html']
   ];
-  var days = getCompanionDays(getRecords());
-  var html = '<a class="brand" href="/index.html" aria-label="迹首页"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">迹</span><span class="brand-caption">MEMORY ATLAS</span></a><nav class="sidebar-nav" aria-label="主要导航">';
+  var html = '<a class="brand" href="/index.html" aria-label="MyArchive 首页"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">MyArchive</span><span class="brand-caption">PERSONAL ARCHIVE</span></a><nav class="sidebar-nav" aria-label="主要导航">';
   items.forEach(function (item) { html += '<a class="nav-item ' + (active === item[0] ? 'active' : '') + '" href="' + item[3] + '" title="' + item[2] + '" aria-label="' + item[2] + '"><span class="nav-icon"><i data-lucide="' + item[1] + '"></i></span><span>' + item[2] + '</span></a>'; });
   html += '<a class="nav-item ' + (active === 'settings' ? 'active' : '') + '" href="/settings.html" title="设置" aria-label="设置"><span class="nav-icon"><i data-lucide="settings-2"></i></span><span>设置</span></a></nav>';
-  html += '<div class="sidebar-companion"><span class="companion-badge"><i data-lucide="sparkles"></i></span><strong>已陪伴 ' + days + ' 天</strong><span>你的经历正在慢慢连接</span><div class="companion-dots" aria-hidden="true"><i class="complete"></i><i></i><i></i><i></i><i></i><i></i></div></div>';
-  html += '<div class="sidebar-foot"><a class="user-mini" href="#" id="sidebar-login"><div class="avatar">LM</div><div><strong>林墨</strong><span>个人空间</span></div><i data-lucide="arrow-right" aria-hidden="true"></i></a></div>';
+  var spaceName = isCloudConfigured() ? '共享云空间' : '本地空间';
+  var spaceDetail = isCloudConfigured() ? '云端已连接' : '本机存储';
+  html += '<div class="sidebar-foot"><a class="user-mini" href="#" id="sidebar-space"><div class="avatar"><i data-lucide="database"></i></div><div><strong>' + spaceName + '</strong><span>' + spaceDetail + '</span></div><i data-lucide="arrow-right" aria-hidden="true"></i></a></div>';
   return html;
 }
 function topbarMarkup(active) {
   var labels = { home:'首页', record:'开始记录', chat:'与 AI 对话', atlas:'事件星球', library:'我的记录', notes:'我的随手记', calendar:'日历视图', detail:'记录详情', settings:'设置' };
-  return '<div class="breadcrumb"><strong>' + (labels[active] || '') + '</strong></div><div class="top-actions"><a class="icon-button top-search" href="/library.html" title="搜索记录" aria-label="搜索记录"><i data-lucide="search"></i></a><a class="top-record" href="/record.html"><i data-lucide="plus"></i><span>开始记录</span></a><button class="icon-button" id="top-login" title="个人空间" aria-label="个人空间"><i data-lucide="user-round"></i></button></div>';
+  return '<div class="breadcrumb"><strong>' + (labels[active] || '') + '</strong></div><div class="top-actions"><a class="icon-button top-search" href="/library.html" title="搜索记录" aria-label="搜索记录"><i data-lucide="search"></i></a><a class="top-record" href="/record.html"><i data-lucide="plus"></i><span>开始记录</span></a><button class="icon-button" id="top-space" title="数据空间" aria-label="数据空间"><i data-lucide="database"></i></button></div>';
 }
 function initShell() {
   var page = getCurrentPage();
   var sidebar = document.getElementById('sidebar'); var topbar = document.getElementById('topbar');
-  if (sidebar) { sidebar.innerHTML = navMarkup(page); var login = document.getElementById('sidebar-login'); if (login) login.addEventListener('click', function (e) { e.preventDefault(); openLogin(); }); }
-  if (topbar) { topbar.innerHTML = topbarMarkup(page); var loginBtn = document.getElementById('top-login'); if (loginBtn) loginBtn.addEventListener('click', openLogin); }
+  if (sidebar) { sidebar.innerHTML = navMarkup(page); var space = document.getElementById('sidebar-space'); if (space) space.addEventListener('click', function (e) { e.preventDefault(); openStorageStatus(); }); }
+  if (topbar) { topbar.innerHTML = topbarMarkup(page); var spaceButton = document.getElementById('top-space'); if (spaceButton) spaceButton.addEventListener('click', openStorageStatus); }
 }
-function openLogin() {
+function openStorageStatus() {
   var wrap = document.getElementById('global-modals'); if (!wrap) return;
-  wrap.innerHTML = '<div class="overlay open" id="login-overlay"><div class="modal"><div class="modal-head"><h2>登录你的空间</h2><button class="close-button" id="close-login">×</button></div><p>登录后可以在不同设备继续积累自己的经历叙事。MVP 阶段先用本地身份模拟。</p><div class="field"><label class="api-label" for="login-email">邮箱</label><input id="login-email" type="text" placeholder="you@school.edu" /></div><div class="field"><label class="api-label" for="login-name">昵称</label><input id="login-name" type="text" placeholder="你的名字" /></div><button class="btn btn-primary" id="login-submit">进入我的空间</button></div></div>';
-  document.getElementById('close-login').addEventListener('click', function () { wrap.innerHTML = ''; });
-  document.getElementById('login-submit').addEventListener('click', function () { wrap.innerHTML = ''; showToast('已进入林墨的经历空间'); });
+  if (!isCloudConfigured()) {
+    wrap.innerHTML = '<div class="overlay open"><div class="modal"><div class="modal-head"><h2>本地空间</h2><button class="close-button" id="close-space" type="button" aria-label="关闭">×</button></div><p>当前未配置云数据库，事件和随手记保存在本机项目中。</p></div></div>';
+    document.getElementById('close-space').addEventListener('click', function () { wrap.innerHTML = ''; });
+    return;
+  }
+  wrap.innerHTML = '<div class="overlay open"><div class="modal"><div class="modal-head"><h2>共享云空间</h2><button class="close-button" id="close-space" type="button" aria-label="关闭">×</button></div><p>当前项目使用唯一一套共享数据。</p><div class="cloud-state"><span></span>事件与随手记从 Supabase 读取</div></div></div>';
+  document.getElementById('close-space').addEventListener('click', function () { wrap.innerHTML = ''; });
 }
 
 function categoryClass(category) {
@@ -157,6 +393,23 @@ function categoryClass(category) {
   if (category === '学术竞赛' || category === '综合竞赛') return 'yellow';
   return '';
 }
+function calendarTone(category) {
+  if (category === '随手记') return 'note';
+  if (/学术|竞赛/.test(category || '')) return 'academic';
+  if (/研究|探究|探索|研学/.test(category || '')) return 'research';
+  if (/领导|实习/.test(category || '')) return 'leadership';
+  if (/艺术/.test(category || '')) return 'art';
+  if (/体育/.test(category || '')) return 'sport';
+  return 'other';
+}
+function collectCalendarMarks(records, notes) {
+  var marks = {};
+  function add(date, tone) { if (!date) return; var item = marks[date] || (marks[date] = { count:0, tones:[] }); item.count += 1; if (item.tones.indexOf(tone) < 0) item.tones.push(tone); }
+  (records || []).forEach(function (record) { add(record.date, calendarTone(record.category)); });
+  (notes || []).forEach(function (note) { add(noteDate(note), 'note'); });
+  return marks;
+}
+function calendarDots(mark) { return mark ? '<span class="calendar-dot-group" aria-hidden="true">' + mark.tones.slice(0,4).map(function (tone) { return '<i class="calendar-dot ' + tone + '"></i>'; }).join('') + '</span>' : ''; }
 function recordCard(record) {
   var firstPhoto = record.photos && record.photos[0]; var cover = typeof firstPhoto === 'string' ? firstPhoto : '';
   var image = cover ? '<div class="record-media" style="background-image:url(\'' + esc(cover) + '\')"></div>' : '';
@@ -172,23 +425,25 @@ function initHome() {
   renderHomeCalendar(records, notes);
   var noteForm = document.getElementById('home-note-form');
   var noteInput = document.getElementById('home-note-input');
-  noteForm.addEventListener('submit', function (event) {
+  noteForm.addEventListener('submit', async function (event) {
     event.preventDefault();
     var content = noteInput.value.trim();
     if (!content) { showToast('先写下一点想法再保存'); noteInput.focus(); return; }
     var createdAt = new Date();
     var nextNotes = getNotes();
     nextNotes.unshift({ id:'note-' + Date.now(), content:content, date:localDateKey(createdAt), createdAt:createdAt.toISOString() });
-    saveNotes(nextNotes);
-    noteInput.value = '';
-    renderHomeCalendar(getRecords(), nextNotes);
-    showToast('随手记已保存');
+    try {
+      await saveNotes(nextNotes);
+      noteInput.value = '';
+      renderHomeCalendar(getRecords(), getNotes());
+      showToast('随手记已保存');
+    } catch (error) {}
   });
   setupNoteVoice(document.getElementById('home-note-voice'), document.getElementById('home-note-voice-status'), noteInput);
 }
 
 function setupNoteVoice(button, status, target) {
-  var recorder; var chunks = []; var stream; var startedAt; var clock;
+  var recorder; var chunks = []; var stream; var startedAt; var clock; var limitTimer;
   button.addEventListener('click', async function () {
     if (recorder && recorder.state === 'recording') { recorder.stop(); return; }
     if (!navigator.mediaDevices || !window.MediaRecorder) { showToast('当前浏览器不支持录音'); return; }
@@ -197,19 +452,20 @@ function setupNoteVoice(button, status, target) {
       chunks = []; startedAt = Date.now(); recorder = new MediaRecorder(stream);
       recorder.ondataavailable = function (event) { if (event.data.size) chunks.push(event.data); };
       recorder.onstop = async function () {
-        clearInterval(clock); stream.getTracks().forEach(function (track) { track.stop(); }); button.classList.remove('recording'); button.setAttribute('aria-label', '语音转文字');
+        clearInterval(clock); clearTimeout(limitTimer); stream.getTracks().forEach(function (track) { track.stop(); }); button.classList.remove('recording'); button.setAttribute('aria-label', '语音转文字');
         var settings = getSettings();
         if (!settings.glm) { status.textContent = '请先在设置中填写 GLM Key'; showToast('录音已完成，配置 GLM Key 后可转成文字'); return; }
         try {
           status.textContent = '正在转成文字…';
           var blob = new Blob(chunks, { type:recorder.mimeType || 'audio/webm' });
-          var transcript = await transcribeAudioWithGlm(settings.glm, await audioBlobToWav(blob), 'quick-note.wav');
+          var transcript = await transcribeAudioSequentially(settings.glm, await audioBlobToWav(blob), { filename:'quick-note.wav', onProgress:function (index, total) { status.textContent = total > 1 ? '识别第 ' + index + ' / ' + total + ' 段…' : '正在转成文字…'; } });
           target.value = [target.value.trim(), transcript].filter(Boolean).join('\n');
           status.textContent = '已加入文本框'; target.focus();
         } catch (error) { status.textContent = '转写失败'; showToast('语音转写失败：' + error.message); }
       };
       recorder.start(1000); button.classList.add('recording'); button.setAttribute('aria-label', '停止录音'); status.textContent = '正在录音 · 00:00';
       clock = setInterval(function () { var seconds = Math.floor((Date.now() - startedAt) / 1000); status.textContent = '正在录音 · ' + String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0'); }, 1000);
+      limitTimer = setTimeout(function () { if (recorder.state === 'recording') recorder.stop(); }, 600000);
     } catch (error) { status.textContent = '无法使用麦克风'; showToast('请检查浏览器的麦克风权限'); }
   });
 }
@@ -221,43 +477,57 @@ function renderHomeCalendar(records, notes) {
   var year = today.getFullYear();
   var month = today.getMonth();
   var monthKey = year + '-' + String(month + 1).padStart(2, '0');
-  var counts = records.reduce(function (result, record) {
-    if ((record.date || '').indexOf(monthKey) === 0) result[record.date] = (result[record.date] || 0) + 1;
-    return result;
-  }, {});
-  (notes || []).forEach(function (note) { var date = noteDate(note); if (date.indexOf(monthKey) === 0) counts[date] = (counts[date] || 0) + 1; });
+  var marks = collectCalendarMarks(records, notes); var monthMarks = Object.keys(marks).filter(function (date) { return date.indexOf(monthKey) === 0; });
   var firstOffset = (new Date(year, month, 1).getDay() + 6) % 7;
   var dayCount = new Date(year, month + 1, 0).getDate();
   var cells = Array.from({ length:firstOffset }, function () { return '<span class="calendar-day muted" aria-hidden="true"></span>'; });
   for (var day = 1; day <= dayCount; day += 1) {
     var dateKey = monthKey + '-' + String(day).padStart(2, '0');
-    var className = 'calendar-day' + (day === today.getDate() ? ' today' : '') + (counts[dateKey] ? ' has-records' : '');
-    var dots = counts[dateKey] ? '<i aria-label="' + counts[dateKey] + ' 条记录"></i>' : '';
+    var className = 'calendar-day' + (day === today.getDate() ? ' today' : '') + (marks[dateKey] ? ' has-records' : '');
+    var dots = calendarDots(marks[dateKey]);
     cells.push('<a class="' + className + '" href="/calendar.html?date=' + dateKey + '"' + (day === today.getDate() ? ' aria-current="date"' : '') + '><b>' + day + '</b>' + dots + '</a>');
   }
-  root.innerHTML = '<div class="calendar-month"><strong>' + year + '年' + (month + 1) + '月</strong><span>本月 ' + Object.values(counts).reduce(function (sum, count) { return sum + count; }, 0) + ' 条记录</span></div><div class="calendar-week"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div><div class="calendar-grid">' + cells.join('') + '</div>';
+  root.innerHTML = '<div class="calendar-month"><strong>' + year + '年' + (month + 1) + '月</strong><span>本月 ' + monthMarks.reduce(function (sum, date) { return sum + marks[date].count; }, 0) + ' 条记录</span></div><div class="calendar-week"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div><div class="calendar-grid">' + cells.join('') + '</div>';
 }
 
 function fillCategories(select) { select.innerHTML = '<option value="">请先选择</option>' + allCategories().map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join(''); }
 function fileList(input, target) {
   target.innerHTML = Array.from(input.files || []).map(function (file) { return '<div class="file-chip"><span>' + esc(file.name) + '</span><span>' + Math.max(1, Math.round(file.size / 1024)) + ' KB</span></div>'; }).join('');
 }
+function explicitDateFromText(text, referenceDate) {
+  var source = String(text || ''); var reference = new Date(referenceDate || Date.now()); reference.setHours(0, 0, 0, 0);
+  function validDate(year, month, day, evidence) { var value = new Date(year, month - 1, day); return value.getFullYear() === year && value.getMonth() === month - 1 && value.getDate() === day ? { date:localDateKey(value), evidence:evidence } : null; }
+  var full = source.match(/((?:19|20)\d{2})\s*(?:年|[-/.])\s*(\d{1,2})\s*(?:月|[-/.])\s*(\d{1,2})\s*(?:日|号)?/);
+  if (full) return validDate(Number(full[1]), Number(full[2]), Number(full[3]), full[0]);
+  var lastYear = source.match(/去年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*(?:日|号)/);
+  if (lastYear) return validDate(reference.getFullYear() - 1, Number(lastYear[1]), Number(lastYear[2]), lastYear[0]);
+  var monthDay = source.match(/(?:^|[^\d])(\d{1,2})\s*月\s*(\d{1,2})\s*(?:日|号)/);
+  if (monthDay) return validDate(reference.getFullYear(), Number(monthDay[1]), Number(monthDay[2]), monthDay[0].trim());
+  var offset = /大前天/.test(source) ? -3 : /前天/.test(source) ? -2 : /昨天|昨日/.test(source) ? -1 : null;
+  if (offset !== null) { reference.setDate(reference.getDate() + offset); return { date:localDateKey(reference), evidence:offset === -1 ? '昨天' : offset === -2 ? '前天' : '大前天' }; }
+  var weekDay = source.match(/上周([一二三四五六日天])/);
+  if (weekDay) { var targetDay = '一二三四五六日天'.indexOf(weekDay[1]) + 1; if (targetDay === 7 || targetDay === 8) targetDay = 7; var currentDay = reference.getDay() || 7; reference.setDate(reference.getDate() - currentDay - 7 + targetDay); return { date:localDateKey(reference), evidence:weekDay[0] }; }
+  return null;
+}
 function initRecord() {
   var category = document.getElementById('event-category'); fillCategories(category);
+  var dateInput = document.getElementById('event-date'); var descriptionBox = document.getElementById('event-description'); dateInput.value = localDateKey(new Date());
+  dateInput.addEventListener('change', function () { dateInput.dataset.userChanged = 'true'; });
+  descriptionBox.addEventListener('blur', function () { if (dateInput.dataset.userChanged === 'true') return; var inferred = explicitDateFromText(descriptionBox.value, new Date()); if (inferred) { dateInput.value = inferred.date; dateInput.dataset.textEvidence = inferred.evidence; showToast('已根据“' + inferred.evidence + '”调整活动时间'); } });
   var documentInput = document.getElementById('document-input'); var photoInput = document.getElementById('photo-input');
   documentInput.addEventListener('change', function () { fileList(documentInput, document.getElementById('document-list')); });
   photoInput.addEventListener('change', function () { fileList(photoInput, document.getElementById('photo-list')); });
-  document.getElementById('add-category').addEventListener('click', function () { var name = window.prompt('创建一个新的活动分类'); if (name && name.trim()) { var settings = getSettings(); settings.categories = (settings.categories || []).concat(name.trim()).filter(function (v,i,a) { return a.indexOf(v) === i; }); saveSettings(settings); fillCategories(category); category.value = name.trim(); showToast('已添加自定义分类'); } });
-  var voiceButton = document.getElementById('voice-button'); var voiceStatus = document.getElementById('voice-status'); var recorder; var voiceChunks = []; var voiceLimitTimer; var voiceClock;
+  document.getElementById('add-category').addEventListener('click', async function () { var name = window.prompt('创建一个新的活动分类'); if (name && name.trim()) { var settings = getSettings(); settings.categories = (settings.categories || []).concat(name.trim()).filter(function (v,i,a) { return a.indexOf(v) === i; }); try { await saveCustomCategories(settings); fillCategories(category); category.value = name.trim(); showToast('已添加自定义分类'); } catch (error) { showToast(error.message); } } });
+  var voiceButton = document.getElementById('voice-button'); var voiceStatus = document.getElementById('voice-status'); var captureField = voiceButton.closest('.capture-field'); var voiceLabel = voiceButton.querySelector('span'); var recorder; var voiceChunks = []; var voiceLimitTimer; var voiceClock;
   voiceButton.addEventListener('click', async function () {
     if (recorder && recorder.state === 'recording') { recorder.stop(); return; }
     if (!navigator.mediaDevices || !window.MediaRecorder) { showToast('当前浏览器不支持录音'); return; }
     try {
       var stream = await navigator.mediaDevices.getUserMedia({ audio:true }); voiceChunks = []; recorder = new MediaRecorder(stream); var startedAt = Date.now();
       recorder.ondataavailable = function (event) { if (event.data.size) voiceChunks.push(event.data); };
-      recorder.onstop = async function () { clearTimeout(voiceLimitTimer); clearInterval(voiceClock); stream.getTracks().forEach(function (track) { track.stop(); }); voiceButton.textContent = '●'; var settings = getSettings(); if (!settings.glm) { voiceStatus.textContent = '录音已完成 · 请先在设置中填入 GLM Key 以识别'; return; } try { voiceStatus.textContent = '正在转换录音…'; var blob = new Blob(voiceChunks, { type:recorder.mimeType || 'audio/webm' }); var wavBlob = await audioBlobToWav(blob); voiceStatus.textContent = '正在识别录音…'; var transcript = await transcribeAudioWithGlm(settings.glm, wavBlob); var descriptionBox = document.getElementById('event-description'); descriptionBox.value = [descriptionBox.value, transcript].filter(Boolean).join('\n'); voiceStatus.textContent = '识别完成 · 最长可录 10 分钟'; } catch (error) { voiceStatus.textContent = '识别失败：' + error.message; } };
-      recorder.start(1000); voiceButton.textContent = '■'; voiceStatus.textContent = '正在录音 · 00:00 / 10:00'; voiceClock = setInterval(function () { var seconds = Math.floor((Date.now() - startedAt) / 1000); var min = String(Math.floor(seconds / 60)).padStart(2,'0'); var sec = String(seconds % 60).padStart(2,'0'); voiceStatus.textContent = '正在录音 · ' + min + ':' + sec + ' / 10:00'; }, 1000); voiceLimitTimer = setTimeout(function () { if (recorder.state === 'recording') recorder.stop(); }, 600000);
-    } catch (error) { voiceButton.textContent = '●'; voiceStatus.textContent = '无法使用麦克风，请检查浏览器权限'; }
+      recorder.onstop = async function () { clearTimeout(voiceLimitTimer); clearInterval(voiceClock); stream.getTracks().forEach(function (track) { track.stop(); }); voiceButton.classList.remove('recording'); captureField.classList.remove('is-recording'); voiceLabel.textContent = '开始语音记录'; voiceButton.setAttribute('aria-label', '开始录音'); var settings = getSettings(); if (!settings.glm) { voiceStatus.textContent = '录音已完成 · 请先在设置中填入 GLM Key 以识别'; return; } try { voiceStatus.textContent = '正在转换录音…'; var blob = new Blob(voiceChunks, { type:recorder.mimeType || 'audio/webm' }); var wavBlob = await audioBlobToWav(blob); var transcript = await transcribeAudioSequentially(settings.glm, wavBlob, { onProgress:function (index, total) { voiceStatus.textContent = total > 1 ? '正在按顺序识别第 ' + index + ' / ' + total + ' 段…' : '正在识别录音…'; } }); descriptionBox.value = [descriptionBox.value, transcript].filter(Boolean).join('\n'); voiceStatus.textContent = '识别完成 · 已按原顺序加入文字'; descriptionBox.dispatchEvent(new Event('blur')); } catch (error) { voiceStatus.textContent = '识别失败：' + error.message; } };
+      recorder.start(1000); voiceButton.classList.add('recording'); captureField.classList.add('is-recording'); voiceLabel.textContent = '停止并识别'; voiceButton.setAttribute('aria-label', '停止录音并识别'); voiceStatus.textContent = '正在录音 · 00:00 / 10:00'; voiceClock = setInterval(function () { var seconds = Math.floor((Date.now() - startedAt) / 1000); var min = String(Math.floor(seconds / 60)).padStart(2,'0'); var sec = String(seconds % 60).padStart(2,'0'); voiceStatus.textContent = '正在录音 · ' + min + ':' + sec + ' / 10:00'; }, 1000); voiceLimitTimer = setTimeout(function () { if (recorder.state === 'recording') recorder.stop(); }, 600000);
+    } catch (error) { voiceButton.classList.remove('recording'); captureField.classList.remove('is-recording'); voiceLabel.textContent = '开始语音记录'; voiceStatus.textContent = '无法使用麦克风，请检查浏览器权限'; }
   });
   document.getElementById('record-form').addEventListener('submit', function (e) { e.preventDefault(); submitRecord(); });
 }
@@ -287,7 +557,7 @@ function localRetrievalSummary(description, photoInsights) {
   if (!cleaned) cleaned = '该事件目前仅保存了附件资料，尚未形成可确认的文字事实摘要。';
   return cleaned.slice(0, 500);
 }
-function inferCategoryFromText(description) { if (/比赛|竞赛|获奖|赛题/.test(description)) return '综合竞赛'; if (/研究|实验|论文|调研/.test(description)) return '研究和探究'; if (/社团|主席|负责人|组织|主持/.test(description)) return '领导力活动'; if (/展览|车展|参观|体验/.test(description)) return '探索类活动'; if (/绘画|音乐|戏剧|艺术/.test(description)) return '艺术活动'; return '随手记'; }
+function inferCategoryFromText(description) { if (/比赛|竞赛|获奖|赛题/.test(description)) return '综合竞赛'; if (/研究|实验|论文|调研/.test(description)) return '研究和探究'; if (/社团|主席|负责人|负责|组织|主持|协调|带领|志愿者/.test(description)) return '领导力活动'; if (/展览|车展|参观|体验/.test(description)) return '探索类活动'; if (/绘画|音乐|戏剧|艺术/.test(description)) return '艺术活动'; return '随手记'; }
 async function generateEventSynthesis(input) {
   var settings = getSettings(); var analyses = []; var photoInsights = [];
   if (input.description && settings.deepseek) {
@@ -299,20 +569,20 @@ async function generateEventSynthesis(input) {
     }
   }
   input.documents.forEach(function (document) { analyses.push({ type:'document', name:document.name, note:'文件已保存，当前摘要仅使用文件名作为检索线索' }); });
-  var fallbackDescription = localRetrievalSummary(input.description, photoInsights); var fallback = { title:input.title || fallbackDescription.replace(/[。！？].*$/, '').slice(0, 28) || '一段新的经历', category:input.category || inferCategoryFromText(input.description), date:input.date || '', aiDescription:fallbackDescription, keywords:[], uncertainties:input.date ? [] : ['活动时间未确认'] };
+  var fallbackDescription = localRetrievalSummary(input.description, photoInsights); var fallback = { title:input.title || fallbackDescription.replace(/[。！？].*$/, '').slice(0, 28) || '一段新的经历', category:input.category || inferCategoryFromText(input.description), date:input.date || localDateKey(new Date()), aiDescription:fallbackDescription, keywords:[], uncertainties:[] };
   if (!settings.deepseek) return fallback;
   try {
-    var raw = await synthesizeEventForRetrieval(settings.deepseek, { title:input.title, category:input.category, date:input.date, description:input.description, categories:allCategories() }, analyses); var parsed = parseModelJson(raw); var allowedCategories = allCategories(); return { title:String(parsed.title || fallback.title).trim(), category:allowedCategories.indexOf(parsed.category) >= 0 ? parsed.category : fallback.category, date:/^\d{4}-\d{2}-\d{2}$/.test(parsed.date || '') ? parsed.date : fallback.date, aiDescription:String(parsed.aiDescription || fallback.aiDescription).trim(), keywords:Array.isArray(parsed.keywords) ? parsed.keywords.slice(0,12) : [], uncertainties:Array.isArray(parsed.uncertainties) ? parsed.uncertainties : fallback.uncertainties };
+    var raw = await synthesizeEventForRetrieval(settings.deepseek, { title:input.title, category:input.category, date:input.date, dateSource:input.dateSource, description:input.description, categories:allCategories() }, analyses); var parsed = parseModelJson(raw); var allowedCategories = allCategories(); return { title:String(parsed.title || fallback.title).trim(), category:allowedCategories.indexOf(parsed.category) >= 0 ? parsed.category : fallback.category, date:input.date, aiDescription:String(parsed.aiDescription || fallback.aiDescription).trim(), keywords:Array.isArray(parsed.keywords) ? parsed.keywords.slice(0,12) : [], uncertainties:Array.isArray(parsed.uncertainties) ? parsed.uncertainties.filter(function (item) { return !/时间|日期/.test(item); }) : fallback.uncertainties };
   } catch (error) { showToast('AI 摘要生成失败，已保存事实型本地摘要'); return fallback; }
 }
 function submitRecord() {
-  var title = document.getElementById('event-title').value.trim(); var category = document.getElementById('event-category').value; var date = document.getElementById('event-date').value; var description = document.getElementById('event-description').value.trim(); var docs = Array.from(document.getElementById('document-input').files || []); var photos = Array.from(document.getElementById('photo-input').files || []);
+  var title = document.getElementById('event-title').value.trim(); var category = document.getElementById('event-category').value; var dateField = document.getElementById('event-date'); var description = document.getElementById('event-description').value.trim(); var inferredDate = explicitDateFromText(description, new Date()); if (dateField.dataset.userChanged !== 'true' && inferredDate) { dateField.value = inferredDate.date; dateField.dataset.textEvidence = inferredDate.evidence; } var date = dateField.value || localDateKey(new Date()); var dateSource = dateField.dataset.userChanged === 'true' ? 'manual' : dateField.dataset.textEvidence ? 'text' : 'default-today'; var docs = Array.from(document.getElementById('document-input').files || []); var photos = Array.from(document.getElementById('photo-input').files || []);
   if (!description && !docs.length && !photos.length) { showToast('请至少添加一份文件、一张照片或一段文字描述'); document.getElementById('event-description').focus(); return; }
   document.getElementById('form-content').style.display = 'none'; document.getElementById('analysis-progress').classList.add('show');
   var progress = Array.from(document.querySelectorAll('.progress-step')); progress.forEach(function (step) { step.className = 'progress-step'; });
   var current = 0;
   function advance() { if (current > 0) { progress[current - 1].classList.remove('running'); progress[current - 1].classList.add('done'); progress[current - 1].querySelector('.step-status').textContent = '✓'; } if (current < progress.length) { progress[current].classList.add('running'); current += 1; setTimeout(advance, 670); } else { finish(); } }
-  async function finish() { var lastStep = progress[progress.length - 1]; lastStep.classList.remove('done'); lastStep.classList.add('running'); lastStep.querySelector('.step-status').textContent = '…'; try { var synthesis = await generateEventSynthesis({ title:title, category:category, date:date, description:description, documents:docs, photos:photos }); var storedDocs = await Promise.all(docs.map(storeMedia)); var storedPhotos = await Promise.all(photos.map(storeMedia)); var record = { id:'r-' + Date.now(), title:synthesis.title, category:synthesis.category, date:synthesis.date, description:description || '已上传资料，等待补充文字描述。', aiDescription:synthesis.aiDescription, keywords:synthesis.keywords, uncertainties:synthesis.uncertainties, files:storedDocs, photos:storedPhotos, createdAt:new Date().toISOString(), needsDate:!synthesis.date }; var records = getRecords(); records.unshift(record); saveRecords(records); lastStep.classList.remove('running'); lastStep.classList.add('done'); lastStep.querySelector('.step-status').textContent = '✓'; document.getElementById('success-note').textContent = synthesis.date ? '标题、分类与事实摘要已经生成。' : '需要补充活动时间：我们暂时没有从资料中识别到明确日期。'; document.getElementById('success-panel').classList.add('show'); document.getElementById('view-created').href = '/detail.html?id=' + encodeURIComponent(record.id); } catch (error) { lastStep.classList.remove('running'); document.getElementById('success-note').textContent = '记录创建失败：' + error.message; document.getElementById('success-panel').classList.add('show'); } }
+  async function finish() { var lastStep = progress[progress.length - 1]; lastStep.classList.remove('done'); lastStep.classList.add('running'); lastStep.querySelector('.step-status').textContent = '…'; try { var synthesis = await generateEventSynthesis({ title:title, category:category, date:date, dateSource:dateSource, description:description, documents:docs, photos:photos }); var storedDocs = await Promise.all(docs.map(storeMedia)); var storedPhotos = await Promise.all(photos.map(storeMedia)); var record = { id:'r-' + Date.now(), title:synthesis.title, category:synthesis.category, date:synthesis.date, description:description || '已上传资料，等待补充文字描述。', aiDescription:synthesis.aiDescription, keywords:synthesis.keywords, uncertainties:synthesis.uncertainties, files:storedDocs, photos:storedPhotos, createdAt:new Date().toISOString(), needsDate:false }; var records = getRecords(); records.unshift(record); await saveRecords(records); lastStep.classList.remove('running'); lastStep.classList.add('done'); lastStep.querySelector('.step-status').textContent = '✓'; document.getElementById('success-note').textContent = dateSource === 'text' ? '已根据文字线索确定日期，并生成标题、分类与事实摘要。' : '标题、分类与事实摘要已经生成。'; document.getElementById('success-panel').classList.add('show'); document.getElementById('view-created').href = '/detail.html?id=' + encodeURIComponent(record.id); } catch (error) { lastStep.classList.remove('running'); document.getElementById('success-note').textContent = '记录创建失败：' + error.message; document.getElementById('success-panel').classList.add('show'); } }
   advance();
 }
 
@@ -354,14 +624,8 @@ function initCalendar() {
   var monthCursor = new Date(selected.getFullYear(), selected.getMonth(), 1);
   var records = getRecords(); var notes = getNotes();
   var monthLabel = document.getElementById('calendar-month-label'); var grid = document.getElementById('calendar-grid');
-  function recordCounts() {
-    var counts = {};
-    records.forEach(function (record) { if (record.date) counts[record.date] = (counts[record.date] || 0) + 1; });
-    notes.forEach(function (note) { var date = noteDate(note); if (date) counts[date] = (counts[date] || 0) + 1; });
-    return counts;
-  }
   function renderMonth() {
-    var year = monthCursor.getFullYear(); var month = monthCursor.getMonth(); var counts = recordCounts();
+    var year = monthCursor.getFullYear(); var month = monthCursor.getMonth(); var marks = collectCalendarMarks(records, notes);
     monthLabel.textContent = year + '年' + (month + 1) + '月';
     var offset = (new Date(year, month, 1).getDay() + 6) % 7;
     var firstCell = new Date(year, month, 1 - offset); var todayKey = localDateKey(new Date()); var selectedKey = localDateKey(selected); var cells = [];
@@ -371,8 +635,8 @@ function initCalendar() {
       if (cellDate.getMonth() !== month) classes.push('outside');
       if (key === todayKey) classes.push('today');
       if (key === selectedKey) classes.push('selected');
-      if (counts[key]) classes.push('has-records');
-      cells.push('<button class="' + classes.join(' ') + '" type="button" data-calendar-date="' + key + '" aria-label="' + fullDateLabel(cellDate) + (counts[key] ? '，有 ' + counts[key] + ' 条记录' : '') + '"' + (key === selectedKey ? ' aria-pressed="true"' : '') + '><span>' + cellDate.getDate() + '</span>' + (counts[key] ? '<i></i>' : '') + '</button>');
+      if (marks[key]) classes.push('has-records');
+      cells.push('<button class="' + classes.join(' ') + '" type="button" data-calendar-date="' + key + '" aria-label="' + fullDateLabel(cellDate) + (marks[key] ? '，有 ' + marks[key].count + ' 条记录' : '') + '"' + (key === selectedKey ? ' aria-pressed="true"' : '') + '><span class="calendar-number">' + cellDate.getDate() + '</span>' + calendarDots(marks[key]) + '</button>');
     }
     grid.innerHTML = cells.join('');
   }
@@ -384,7 +648,7 @@ function initCalendar() {
     document.getElementById('agenda-count').textContent = dayRecords.length + ' 个事件';
     document.getElementById('agenda-events').innerHTML = dayRecords.length ? dayRecords.map(function (record) {
       var firstPhoto = record.photos && record.photos[0]; var cover = typeof firstPhoto === 'string' ? '<div class="agenda-event-cover" style="background-image:url(\'' + esc(firstPhoto) + '\')"></div>' : '';
-      return '<a class="agenda-event" href="/detail.html?id=' + encodeURIComponent(record.id) + '"><span class="agenda-event-dot"></span><div class="agenda-event-copy"><div class="agenda-event-meta"><span>当天</span><span class="tag ' + categoryClass(record.category) + '">' + esc(record.category || '待分类') + '</span></div><h4>' + esc(record.title || '未命名经历') + '</h4><p>' + esc(record.aiDescription || record.description || '这段经历还没有描述。') + '</p><small>查看详情 <span aria-hidden="true">→</span></small></div>' + cover + '</a>';
+      return '<a class="agenda-event" href="/detail.html?id=' + encodeURIComponent(record.id) + '"><span class="agenda-event-dot ' + calendarTone(record.category) + '"></span><div class="agenda-event-copy"><div class="agenda-event-meta"><span>当天</span><span class="tag ' + categoryClass(record.category) + '">' + esc(record.category || '待分类') + '</span></div><h4>' + esc(record.title || '未命名经历') + '</h4><p>' + esc(record.aiDescription || record.description || '这段经历还没有描述。') + '</p><small>查看详情 <span aria-hidden="true">→</span></small></div>' + cover + '</a>';
     }).join('') : '<p class="agenda-empty">当日无记录事件</p>';
     document.getElementById('agenda-notes').innerHTML = dayNotes.length ? dayNotes.map(function (note) { var created = new Date(note.createdAt || note.date); return '<article class="agenda-note"><time>' + created.toLocaleTimeString('zh-CN', { hour:'2-digit', minute:'2-digit', hour12:false }) + '</time><p>' + esc(note.content) + '</p></article>'; }).join('') : '<p class="agenda-empty">当日无随手记</p>';
     history.replaceState(null, '', '/calendar.html?date=' + selectedKey);
@@ -400,11 +664,103 @@ function initCalendar() {
 function getChatMessages() { try { var m = JSON.parse(sessionStorage.getItem(CHAT_KEY)); if (Array.isArray(m)) return m; } catch (e) {} return []; }
 function saveChatMessages(messages) { sessionStorage.setItem(CHAT_KEY, JSON.stringify(messages)); }
 function lastChatContext(messages) { for (var i = messages.length - 1; i >= 0; i -= 1) if (messages[i].context) return messages[i].context; return { mode:'chat' }; }
+var chatReferenceIds = [];
 function isGreeting(query) { return /^(你好|嗨|hello|hi|早上好|晚上好|在吗|哈喽)[！!。．,.，\s]*$/i.test(query.trim()); }
 function wantsArchive(query) { return /找|推荐|筛选|匹配|回顾|经历库|活动记录|哪条|哪些经历|文书|简历|面试|改写|总结我的/.test(query); }
 function hasTheme(query) { return /领导|团队|协作|冲突|研究|探索|坚持|突破|创造力|沟通|责任|压力|成长|独立|解决问题|组织/.test(query); }
 function detectScenario(query) { if (/简历|bullet|resume/i.test(query)) return '简历'; if (/面试/.test(query)) return '面试'; if (/申请|文书|essay|个人陈述/i.test(query)) return '申请文书'; if (/入团|入党/.test(query)) return '入团入党材料'; return ''; }
 function topicText(query) { var words = query.match(/领导力|团队协作|团队合作|解决冲突|研究能力|探索精神|突破舒适区|沟通能力|责任感|抗压|创造力|独立性/); return words ? words[0] : ''; }
+function wantsNewRecord(query) {
+  var source = String(query || '').trim();
+  return /(?:新建|创建|新增|添加|录入)(?:一条|一个|这段|这次)?(?:新的?)?(?:事件|经历|活动|记录)/.test(source)
+    || /(?:想|希望|打算|要|请|麻烦|帮我|能不能|可以).{0,20}(?:把|将)?(?:它|他|这件事|这次活动|这段经历|这个活动)?(?:记录|记下|存下)(?:下来|一下|进经历库|到经历库)?/.test(source)
+    || /(?:把|将).{1,80}(?:记录|记下|存下)(?:来|进经历库|到经历库)/.test(source)
+    || /(?:加入|放进|保存到|存进)(?:我的)?(?:经历库|事件记录)/.test(source);
+}
+function confirmsFormalRecord(query) { return /^(?:好的?[，,]?)?(?:作为)?(?:一条)?正式(?:经历|事件|记录)(?:吧|就好|就可以)?[。！!\s]*$/.test(String(query || '').trim()); }
+function wantsToFinishRecord(query) { return /就这些|先这样|直接保存|保存吧|创建吧|不想再聊|不补充|没有了|没了|到这里/.test(query); }
+function wantsToCancelRecord(query) { return /算了|取消(?:记录|创建)|不记录了|别保存/.test(query); }
+function documentFormatFromQuery(query) { if (/pdf/i.test(query)) return 'pdf'; if (/word|docx|文档文件/i.test(query)) return 'word'; return ''; }
+function recentRecordRequest(messages) {
+  for (var i = messages.length - 1; i >= Math.max(0, messages.length - 8); i -= 1) {
+    if (messages[i].role === 'user' && wantsNewRecord(messages[i].text || '')) return messages[i].text;
+  }
+  return '';
+}
+function cleanRecordDetail(query) {
+  var detail = String(query || '').trim();
+  detail = detail.replace(/^(?:好的?[，,]?|可以[，,]?|请|麻烦)?(?:你)?(?:帮我)?(?:新建|创建|新增|添加|记下|记录下|存下|录入)(?:一条|一个|这段|这次)?(?:新的?)?(?:事件|经历|活动|记录)?[：:，,\s]*/, '');
+  detail = detail.replace(/[，,。；;\s]*(?:我)?(?:想|希望|打算|要)?(?:请你|让你|你能|帮我)?(?:把|将)?(?:它|他|这件事|这次活动|这段经历|这个活动)?(?:记录|记下|存下)(?:下来|一下|进经历库|到经历库)?(?:吧|好吗|可以吗)?[。！!\s]*$/, '');
+  if (confirmsFormalRecord(detail) || /^(?:好的?|可以|行|嗯|不知道|不记得|记不清|没有|没什么)[。！!\s]*$/.test(detail)) return '';
+  return detail.trim();
+}
+function mergeChatRecordDraft(query, previous) {
+  var draft = Object.assign({ title:'', category:'', date:'', description:'', turns:0, completedStages:[] }, previous || {}); var clean = String(query || '').trim();
+  var named = clean.match(/(?:标题是|叫作|叫做|名为)[“「]?([^”，。；」\n]{2,40})/); if (named) draft.title = named[1].trim();
+  var explicit = explicitDateFromText(clean, new Date()); if (explicit) draft.date = explicit.date;
+  var detail = cleanRecordDetail(clean);
+  if (!wantsToFinishRecord(clean) && detail) draft.description = [draft.description, detail].filter(Boolean).join('\n');
+  if (!draft.category || draft.category === '随手记') draft.category = inferCategoryFromText(draft.description);
+  if (!draft.title && draft.description) { var eventName = draft.description.match(/(?:我|我们)?(?:今天|昨天|前天)?(?:参加|参与|去了|听了|参观)(?:了)?(?:一个|一次|一场)?([^，。；\n]{2,24})/); var actionName = draft.description.match(/负责([^，。；\n]{2,20})/); if (eventName) draft.title = eventName[1].trim() + (actionName ? '：' + actionName[1].trim() : ''); }
+  draft.turns += 1;
+  return draft;
+}
+function recordSubject(draft) {
+  if (draft.title) return draft.title.split('：')[0].slice(0, 28);
+  var match = draft.description.match(/(?:参加|参与|去了|听了|参观)(?:了)?(?:一个|一次|一场)?([^，。；\n]{2,28})/);
+  return match ? match[1].trim() : '';
+}
+function recordHasFocus(draft) { return draft.description.length >= 42 || /(?:主要|主题|内容|围绕|讲了|分享到|提到|讨论|介绍|展示|案例|最有印象|印象最深)/.test(draft.description); }
+function recordHasParticipation(draft) {
+  var role = '(?:听众|观众|参会者|成员|志愿者|主持人|组织者|分享者)';
+  var action = '(?:负责|提出|提问|分享了|交流了|尝试|试着|完成|制作|组织|协调|解决|实践了|操作|展示|回答|带领|查找|整理|记录了)';
+  return new RegExp('(?:我|我们)(?:(?:是|作为|担任).{0,14}' + role + '|(?:在|当时|现场|还|也|主要|随后|后来|其中|跟着|向|和|与)[^。；\\n]{0,44}' + action + '|' + action + ')').test(draft.description)
+    || new RegExp('(?:作为|担任).{0,10}' + role).test(draft.description);
+}
+function recordHasReflection(draft) { return /(?:最后|最终|结果|收获|学到|发现|意识到|明白|感受|觉得|启发|之后|后来|接下来|准备|打算|决定|让我|对我|获得|成功)/.test(draft.description); }
+function recordDraftIsDetailed(draft) { return draft.description.length >= 58 && recordHasFocus(draft) && recordHasParticipation(draft) && recordHasReflection(draft); }
+function nextRecordStage(draft) {
+  var completed = new Set(draft.completedStages || []);
+  if (draft.description.length < 18 && !completed.has('scene')) return 'scene';
+  if (!recordHasFocus(draft) && !completed.has('focus')) return 'focus';
+  if (!recordHasParticipation(draft) && !completed.has('participation')) return 'participation';
+  if (!recordHasReflection(draft) && !completed.has('reflection')) return 'reflection';
+  if (draft.description.length < 72 && !completed.has('detail')) return 'detail';
+  return '';
+}
+function recordGuidance(stage, draft, active) {
+  var subject = recordSubject(draft); var label = subject ? '“' + subject + '”' : '这段经历';
+  if (stage === 'scene') return '当然可以。我们慢慢整理，不用一次把所有信息都想全。先从事情本身开始：这是一次什么活动，当时大概发生了什么？';
+  if (stage === 'focus') return (active ? '好，我已经记下事情的开头。' : '好，我们慢慢把' + label + '整理成一条正式经历，不用一次把所有信息都想全。') + '先从你最有印象的部分说起：当时主要聊了什么，哪一点让你现在还记得？';
+  if (stage === 'participation') return '这部分我先记下了。接下来只聊你在现场的参与：除了到场参加，你有没有提问、交流、动手尝试，或者做过什么特别的记录？';
+  if (stage === 'reflection') return '明白，这样你在' + label + '里的参与就清楚多了。最后想听听它对你的影响：你带走了什么新认识，或者之后想继续做什么？';
+  return '已经很接近一条完整记录了。再补一个最具体的现场片段就好：有没有一句话、一个例子或一个瞬间，让你印象特别深？';
+}
+function recordConversationStep(query, messages) {
+  var context = lastChatContext(messages); var active = context.mode === 'create-record'; var seed = wantsNewRecord(query) ? query : confirmsFormalRecord(query) ? recentRecordRequest(messages) : '';
+  if (!active && !seed) return null;
+  if (active && wantsToCancelRecord(query)) return { text:'好的，这次不会创建记录。我们可以继续聊别的内容。', context:{ mode:'chat' } };
+  var draft = mergeChatRecordDraft(active ? query : seed, active ? context.draft : null);
+  if (active && context.stage && draft.completedStages.indexOf(context.stage) < 0) draft.completedStages.push(context.stage);
+  var finish = wantsToFinishRecord(query) || recordDraftIsDetailed(draft) || (active && draft.turns >= 5 && draft.description.length >= 24);
+  if (finish && draft.description) return { draft:draft, shouldCreate:true };
+  var stage = nextRecordStage(draft);
+  if (!stage && draft.description) return { draft:draft, shouldCreate:true };
+  return { text:recordGuidance(stage || 'scene', draft, active), context:{ mode:'create-record', stage:stage || 'scene', draft:draft } };
+}
+async function createRecordFromChat(draft) {
+  var date = draft.date || localDateKey(new Date()); var dateSource = draft.date ? 'text' : 'default-today';
+  var synthesis = await generateEventSynthesis({ title:draft.title, category:draft.category, date:date, dateSource:dateSource, description:draft.description, documents:[], photos:[] });
+  var record = { id:'chat-' + Date.now(), title:synthesis.title, category:synthesis.category, date:date, description:draft.description, aiDescription:synthesis.aiDescription, keywords:synthesis.keywords, uncertainties:synthesis.uncertainties, files:[], photos:[], createdAt:new Date().toISOString(), needsDate:false, createdVia:'chat' };
+  var records = getRecords(); records.unshift(record); await saveRecords(records); return record;
+}
+function artifactFromRecords(format, query, recordIds, reply) {
+  var records = recordIds.map(function (id) { return getRecords().find(function (record) { return record.id === id; }); }).filter(Boolean);
+  var title = records.length === 1 ? records[0].title : records.length > 1 ? '经历整理与对比' : 'MyArchive 对话整理';
+  var sections = records.map(function (record, index) { return (index + 1) + '. ' + record.title + '\n日期：' + dateLabel(record.date) + '\n分类：' + (record.category || '待分类') + '\n\n' + (record.aiDescription || record.description || ''); });
+  var content = sections.length ? title + '\n\n' + sections.join('\n\n') : title + '\n\n需求：' + query + '\n\n' + reply;
+  return { format:format, title:title, content:content };
+}
 function localArchiveMatches(query, context) {
   var records = getRecords(); var combined = [query, context.scenario || '', context.theme || ''].join(' ').toLowerCase(); var categoryHints = [];
   if (/领导|团队|协作|冲突|沟通|责任/.test(combined)) categoryHints = ['领导力活动','研究和探究'];
@@ -414,8 +770,9 @@ function localArchiveMatches(query, context) {
   if (!matches.length) matches = records.slice(0, Math.min(3, records.length));
   return matches.slice(0,3);
 }
-function makeLocalReply(query, messages) {
-  var q = query.trim(); var lower = q.toLowerCase(); var context = lastChatContext(messages); var scenario = context.scenario || detectScenario(q); var theme = context.theme || topicText(q); var switchesToChat = /我想聊|先聊|另外|其实|焦虑|迷茫|今天|最近|谢谢|再见/.test(q) && !wantsArchive(q); var archiveIntent = wantsArchive(q) || (context.mode === 'retrieval' && !switchesToChat);
+function makeLocalReply(query, messages, selectedRecordIds) {
+  var q = query.trim(); var lower = q.toLowerCase(); var context = lastChatContext(messages); var scenario = context.scenario || detectScenario(q); var theme = context.theme || topicText(q); var switchesToChat = /我想聊|先聊|另外|其实|焦虑|迷茫|今天|最近|谢谢|再见/.test(q) && !wantsArchive(q); var archiveIntent = wantsArchive(q) || (context.mode === 'retrieval' && !switchesToChat); var format = documentFormatFromQuery(q);
+  if (format) { var sourceIds = (selectedRecordIds || []).slice(); if (!sourceIds.length) sourceIds = localArchiveMatches(q, context).map(function (record) { return record.id; }); var reply = '已经按你的要求整理好' + (format === 'word' ? ' Word 文档' : ' PDF 文件') + '，可以在下方直接下载。'; return { text:reply, recs:sourceIds, artifact:artifactFromRecords(format, q, sourceIds, reply), context:{ mode:'document' } }; }
   if (isGreeting(q)) return { text:'你好！今天过得怎么样？我们可以聊学校、活动、最近的困惑，或者一起慢慢整理一段经历。你不用一开始就把需求说完整。', context:{ mode:'chat' } };
   if (/你能做什么|怎么用|你是谁|可以聊什么/.test(lower)) return { text:'我可以陪你进行普通对话，也可以在你准备文书、简历、面试或材料时，从经历库里找记录、阅读详情并帮你改写。你可以先告诉我发生了什么，我会通过几轮对话慢慢理解你想要的结果。', context:{ mode:'chat' } };
   if (/谢谢|感谢|再见|拜拜/.test(lower)) return { text:'不客气。你想到新的细节时，随时可以回来接着聊。', context:{ mode:'chat' } };
@@ -432,41 +789,73 @@ function makeLocalReply(query, messages) {
   }
   return { text:'我听到了。你可以继续把事情说下去，不需要马上整理成“正确的问题”。如果你愿意，我也可以帮你把刚才的想法拆成：发生了什么、你做了什么、你现在真正想得到什么。', context:{ mode:'chat' } };
 }
-async function getChatReply(query, messages) {
-  var settings = getSettings();
+async function getChatReply(query, messages, selectedRecordIds) {
+  var creation = recordConversationStep(query, messages);
+  if (creation) {
+    if (!creation.shouldCreate) return creation;
+    var created = await createRecordFromChat(creation.draft);
+    return { text:'已经把“' + created.title + '”创建为事件记录并放进经历库。活动日期为 ' + dateLabel(created.date) + '；之后仍可以在详情页继续补充或修改。', recs:[created.id], context:{ mode:'chat', createdRecordId:created.id } };
+  }
+  var settings = getSettings(); var referenceIds = selectedRecordIds || [];
   if (settings.deepseek) {
     try {
-      var raw = await chatWithDeepSeek(settings.deepseek, messages.filter(function (m) { return !m.typing; }).map(function (m) { return { role:m.role, content:m.text }; }), getRecords(), getNotes()); var parsed = JSON.parse(raw); var validIds = Array.isArray(parsed.recordIds) ? parsed.recordIds.filter(function (id) { return getRecords().some(function (r) { return r.id === id; }); }) : []; var previousContext = lastChatContext(messages); return { text:parsed.reply || '我还在理解你的意思，可以再多告诉我一点吗？', recs:validIds, context:{ mode:parsed.intent === 'retrieve' ? 'retrieval' : 'chat', stage:validIds.length ? 'done' : 'conversation', scenario:previousContext.scenario, theme:previousContext.theme } };
+      var promptMessages = messages.filter(function (m) { return !m.typing; }).map(function (m) { var names = (m.refs || []).map(function (id) { var record = getRecords().find(function (item) { return item.id === id; }); return record && record.title; }).filter(Boolean); return { role:m.role, content:(names.length ? '【本轮引用事件：' + names.join('、') + '】\n' : '') + m.text }; });
+      var raw = await chatWithDeepSeek(settings.deepseek, promptMessages, getRecords(), getNotes(), referenceIds); var parsed = parseModelJson(raw); var validIds = Array.isArray(parsed.recordIds) ? parsed.recordIds.filter(function (id) { return getRecords().some(function (r) { return r.id === id; }); }) : []; var shownIds = validIds.length ? validIds : referenceIds; var previousContext = lastChatContext(messages); var artifact = parsed.document && /^(word|pdf)$/.test(parsed.document.format || '') && parsed.document.content ? { format:parsed.document.format, title:String(parsed.document.title || 'MyArchive 对话整理'), content:String(parsed.document.content) } : null; var requestedFormat = documentFormatFromQuery(query); if (requestedFormat && !artifact) artifact = artifactFromRecords(requestedFormat, query, shownIds, parsed.reply || ''); return { text:parsed.reply || '我还在理解你的意思，可以再多告诉我一点吗？', recs:shownIds, artifact:artifact, context:{ mode:parsed.intent === 'retrieve' ? 'retrieval' : parsed.intent === 'document' ? 'document' : 'chat', stage:shownIds.length ? 'done' : 'conversation', scenario:previousContext.scenario, theme:previousContext.theme } };
     } catch (error) { showToast('AI 暂时不可用，已切换为本地对话模式'); }
   }
-  return makeLocalReply(query, messages);
+  return makeLocalReply(query, messages, referenceIds);
+}
+function safeDownloadName(value) { return String(value || 'MyArchive 文档').replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 80) || 'MyArchive 文档'; }
+function downloadBlob(blob, filename) { var url = URL.createObjectURL(blob); var link = document.createElement('a'); link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 1500); }
+async function exportWordArtifact(artifact) {
+  var docx = await import('docx'); var lines = String(artifact.content || '').split(/\n/); var children = [];
+  lines.forEach(function (line, index) { if (index === 0) children.push(new docx.Paragraph({ heading:docx.HeadingLevel.TITLE, spacing:{ after:320 }, children:[new docx.TextRun({ text:line || artifact.title, bold:true, size:36 })] })); else children.push(new docx.Paragraph({ spacing:{ after:line ? 160 : 80, line:360 }, children:[new docx.TextRun({ text:line, size:22 })] })); });
+  var documentFile = new docx.Document({ creator:'MyArchive', title:artifact.title, sections:[{ properties:{ page:{ margin:{ top:1134, right:1134, bottom:1134, left:1134 } } }, children:children }] });
+  downloadBlob(await docx.Packer.toBlob(documentFile), safeDownloadName(artifact.title) + '.docx');
+}
+async function exportPdfArtifact(artifact) {
+  var libraries = await Promise.all([import('html2canvas'), import('jspdf')]); var html2canvas = libraries[0].default || libraries[0]; var JsPdf = libraries[1].jsPDF; var sheet = document.createElement('article'); sheet.className = 'pdf-export-sheet'; var title = document.createElement('h1'); title.textContent = artifact.title; var body = document.createElement('div'); body.textContent = artifact.content; sheet.append(title, body); document.body.appendChild(sheet);
+  try { if (document.fonts && document.fonts.ready) await document.fonts.ready; var canvas = await html2canvas(sheet, { scale:2, useCORS:true, backgroundColor:'#ffffff', logging:false }); var pdf = new JsPdf({ unit:'mm', format:'a4', orientation:'portrait', compress:true }); var pageWidth = pdf.internal.pageSize.getWidth(); var pageHeight = pdf.internal.pageSize.getHeight(); var margin = 10; var imageWidth = pageWidth - margin * 2; var imageHeight = canvas.height * imageWidth / canvas.width; var image = canvas.toDataURL('image/jpeg', .96); var position = margin; pdf.addImage(image, 'JPEG', margin, position, imageWidth, imageHeight, undefined, 'FAST'); var remaining = imageHeight - (pageHeight - margin * 2); while (remaining > 0) { pdf.addPage(); position = margin - (imageHeight - remaining); pdf.addImage(image, 'JPEG', margin, position, imageWidth, imageHeight, undefined, 'FAST'); remaining -= pageHeight - margin * 2; } pdf.save(safeDownloadName(artifact.title) + '.pdf'); } finally { sheet.remove(); }
+}
+async function exportChatArtifact(artifact) { if (!artifact) return; showToast('正在生成' + (artifact.format === 'word' ? ' Word 文档…' : ' PDF 文件…')); try { if (artifact.format === 'word') await exportWordArtifact(artifact); else await exportPdfArtifact(artifact); showToast('文件已生成并开始下载'); } catch (error) { showToast('文件生成失败：' + error.message); } }
+function renderChatReferences() {
+  var root = document.getElementById('chat-references'); if (!root) return; chatReferenceIds = chatReferenceIds.filter(function (id, index, list) { return list.indexOf(id) === index && getRecords().some(function (record) { return record.id === id; }); }); root.hidden = !chatReferenceIds.length;
+  root.innerHTML = chatReferenceIds.map(function (id) { var record = getRecords().find(function (item) { return item.id === id; }); return '<span class="chat-reference-chip"><i data-lucide="message-square-more"></i><span>' + esc(record.title) + '</span><button type="button" data-remove-reference="' + esc(id) + '" title="移除引用" aria-label="移除 ' + esc(record.title) + '"><i data-lucide="x"></i></button></span>'; }).join('');
 }
 function renderChat() {
   var box = document.getElementById('messages'); var messages = getChatMessages(); var workspace = document.getElementById('chat-workspace'); var active = messages.length > 0;
   workspace.classList.toggle('is-active', active); document.getElementById('clear-chat').hidden = !active;
   document.getElementById('chat-input').placeholder = active ? '输入消息…' : '和我聊聊，或告诉我你想找什么';
-  box.innerHTML = messages.map(function (message) {
+  box.innerHTML = messages.map(function (message, messageIndex) {
     var bubbleContent = message.typing ? '<span class="typing-dots"><i></i><i></i><i></i></span>' : esc(message.text);
-    var cards = message.recs && message.recs.length ? '<div class="recommendations">' + message.recs.map(function (id) { var record = getRecords().find(function (item) { return item.id === id; }); var firstPhoto = record && record.photos && record.photos[0]; var cover = typeof firstPhoto === 'string' ? firstPhoto : 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=500&q=80'; return record ? '<a class="rec-card" href="/detail.html?id=' + encodeURIComponent(record.id) + '"><div class="rec-thumb" style="background-image:url(\'' + esc(cover) + '\')"></div><div><h4>' + esc(record.title) + '</h4><p>' + esc(record.category) + ' · ' + dateLabel(record.date) + '</p></div><span class="rec-arrow">↗</span></a>' : ''; }).join('') + '</div>' : '';
+    var referenceLabels = message.refs && message.refs.length ? '<div class="sent-references">' + message.refs.map(function (id) { var record = getRecords().find(function (item) { return item.id === id; }); return record ? '<span><i data-lucide="message-square-more"></i>' + esc(record.title) + '</span>' : ''; }).join('') + '</div>' : '';
+    var cards = message.recs && message.recs.length ? '<div class="recommendations">' + message.recs.map(function (id) { var record = getRecords().find(function (item) { return item.id === id; }); var firstPhoto = record && record.photos && record.photos[0]; var cover = typeof firstPhoto === 'string' ? firstPhoto : 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=500&q=80'; var href = '/detail.html?id=' + encodeURIComponent(record && record.id); return record ? '<article class="rec-card"><a class="rec-card-main" href="' + href + '"><div class="rec-thumb" style="background-image:url(\'' + esc(cover) + '\')"></div><div class="rec-copy"><h4>' + esc(record.title) + '</h4><p>' + esc(record.category) + ' · ' + dateLabel(record.date) + '</p></div></a><button class="rec-follow" type="button" data-follow-record="' + esc(record.id) + '"><i data-lucide="message-square-more"></i><span>追问 AI</span></button><a class="rec-arrow" href="' + href + '" title="查看详情" aria-label="查看 ' + esc(record.title) + ' 详情">↗</a></article>' : ''; }).join('') + '</div>' : '';
+    var artifact = message.artifact ? '<button class="chat-artifact" type="button" data-artifact-message="' + messageIndex + '"><span class="artifact-icon"><i data-lucide="file-text"></i></span><span><strong>' + esc(message.artifact.title) + '</strong><small>' + (message.artifact.format === 'word' ? 'Word 文档 · .docx' : 'PDF 文件 · .pdf') + '</small></span><i class="artifact-download" data-lucide="download"></i></button>' : '';
     var timestamp = message.createdAt ? new Date(message.createdAt).toLocaleTimeString('zh-CN', { hour:'2-digit', minute:'2-digit', hour12:false }) : '';
     var avatar = message.role === 'assistant' ? '<div class="message-avatar" aria-label="AI 助手"><span class="brand-mark"></span></div>' : '';
-    return '<div class="message ' + (message.role === 'user' ? 'user' : '') + '">' + avatar + '<div class="message-stack"><div class="message-bubble">' + bubbleContent + '</div>' + cards + (message.typing ? '' : '<time class="message-time">' + timestamp + '</time>') + '</div></div>';
+    return '<div class="message ' + (message.role === 'user' ? 'user' : '') + '">' + avatar + '<div class="message-stack">' + referenceLabels + '<div class="message-bubble">' + bubbleContent + '</div>' + cards + artifact + (message.typing ? '' : '<time class="message-time">' + timestamp + '</time>') + '</div></div>';
   }).join('');
+  renderChatReferences(); renderIcons();
   box.scrollTop = box.scrollHeight;
 }
 function initChat() {
-  var form = document.getElementById('chat-form'); var input = document.getElementById('chat-input'); var sendButton = form.querySelector('.send-btn');
+  var form = document.getElementById('chat-form'); var input = document.getElementById('chat-input'); var sendButton = form.querySelector('.send-btn'); var messagesBox = document.getElementById('messages'); var referencesBox = document.getElementById('chat-references');
   function resizeInput() { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 116) + 'px'; input.style.overflowY = input.scrollHeight > 116 ? 'auto' : 'hidden'; }
   async function send() {
-    var q = input.value.trim(); if (!q || sendButton.disabled) return; var now = new Date().toISOString(); var messages = getChatMessages();
-    messages.push({ role:'user', text:q, createdAt:now }); messages.push({ role:'assistant', typing:true, createdAt:now }); saveChatMessages(messages); input.value = ''; resizeInput(); sendButton.disabled = true; renderChat();
-    var answer = await getChatReply(q, messages.slice(0, -1)); await new Promise(function (resolve) { setTimeout(resolve, 350); });
-    var finalMessages = getChatMessages().filter(function (message) { return !message.typing; }); finalMessages.push({ role:'assistant', text:answer.text, recs:answer.recs, context:answer.context, createdAt:new Date().toISOString() }); saveChatMessages(finalMessages); sendButton.disabled = false; renderChat(); input.focus();
+    var q = input.value.trim(); if (!q || sendButton.disabled) return; var now = new Date().toISOString(); var messages = getChatMessages(); var selectedIds = chatReferenceIds.slice();
+    messages.push({ role:'user', text:q, refs:selectedIds, createdAt:now }); messages.push({ role:'assistant', typing:true, createdAt:now }); saveChatMessages(messages); input.value = ''; chatReferenceIds = []; resizeInput(); sendButton.disabled = true; renderChat();
+    var answer = await getChatReply(q, messages.slice(0, -1), selectedIds); await new Promise(function (resolve) { setTimeout(resolve, 350); });
+    var finalMessages = getChatMessages().filter(function (message) { return !message.typing; }); finalMessages.push({ role:'assistant', text:answer.text, recs:answer.recs, artifact:answer.artifact, context:answer.context, createdAt:new Date().toISOString() }); saveChatMessages(finalMessages); sendButton.disabled = false; renderChat(); input.focus();
   }
   form.addEventListener('submit', function (event) { event.preventDefault(); send(); });
   input.addEventListener('input', resizeInput);
   input.addEventListener('keydown', function (event) { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); form.requestSubmit(); } });
-  document.getElementById('clear-chat').addEventListener('click', function () { sessionStorage.removeItem(CHAT_KEY); input.value = ''; resizeInput(); renderChat(); input.focus(); });
+  referencesBox.addEventListener('click', function (event) { var button = event.target.closest('[data-remove-reference]'); if (!button) return; chatReferenceIds = chatReferenceIds.filter(function (id) { return id !== button.dataset.removeReference; }); renderChatReferences(); renderIcons(); input.focus(); });
+  messagesBox.addEventListener('click', function (event) {
+    var follow = event.target.closest('[data-follow-record]'); if (follow) { if (chatReferenceIds.indexOf(follow.dataset.followRecord) < 0) chatReferenceIds.push(follow.dataset.followRecord); renderChatReferences(); renderIcons(); input.focus(); return; }
+    var artifactButton = event.target.closest('[data-artifact-message]'); if (artifactButton) { var message = getChatMessages()[Number(artifactButton.dataset.artifactMessage)]; exportChatArtifact(message && message.artifact); }
+  });
+  document.getElementById('clear-chat').addEventListener('click', function () { sessionStorage.removeItem(CHAT_KEY); chatReferenceIds = []; input.value = ''; resizeInput(); renderChat(); input.focus(); });
   renderChat(); resizeInput();
 }
 
@@ -492,7 +881,7 @@ function initDetail() {
     '<footer class="detail-footer"><div class="detail-status-summary"><span>创建于 <strong>' + new Date(record.createdAt || Date.now()).toLocaleDateString('zh-CN') + '</strong></span><span>附件 <strong>' + ((record.files || []).length + (record.photos || []).length) + ' 个</strong></span><span>时间 <strong>' + (record.date ? '已识别' : '需要补充') + '</strong></span></div><button type="button" class="btn btn-danger" id="delete-record">删除记录</button></footer>'
   ].join('');
   main.querySelectorAll('[data-media-id]').forEach(async function (tile) { var url = await getMediaUrl(tile.dataset.mediaId); if (url) tile.style.backgroundImage = 'url("' + url + '")'; });
-  document.getElementById('regenerate-ai').addEventListener('click', async function (e) { var button = e.currentTarget; button.disabled = true; button.textContent = '正在生成…'; try { var sourcePhotos = []; for (var photoIndex = 0; photoIndex < (record.photos || []).length; photoIndex += 1) { var photo = record.photos[photoIndex]; if (photo && typeof photo === 'object') { var storedPhoto = await getStoredMedia(photo.id); if (storedPhoto && storedPhoto.blob) sourcePhotos.push(new File([storedPhoto.blob], storedPhoto.name, { type:storedPhoto.type || storedPhoto.blob.type })); } } var sourceDocuments = (record.files || []).map(function (file) { return { name:typeof file === 'object' ? file.name : file }; }); var synthesis = await generateEventSynthesis({ title:record.title, category:record.category, date:record.date, description:record.description, documents:sourceDocuments, photos:sourcePhotos }); var records = getRecords(); var recordIndex = records.findIndex(function (item) { return item.id === record.id; }); records[recordIndex] = Object.assign({}, records[recordIndex], { aiDescription:synthesis.aiDescription, keywords:synthesis.keywords, uncertainties:synthesis.uncertainties }); saveRecords(records); showToast('已重新生成事实型事件摘要'); setTimeout(function () { location.reload(); }, 500); } catch (error) { button.disabled = false; button.textContent = '↻ 重新生成'; showToast('重新生成失败：' + error.message); } });
+  document.getElementById('regenerate-ai').addEventListener('click', async function (e) { var button = e.currentTarget; button.disabled = true; button.textContent = '正在生成…'; try { var sourcePhotos = []; for (var photoIndex = 0; photoIndex < (record.photos || []).length; photoIndex += 1) { var photo = record.photos[photoIndex]; if (photo && typeof photo === 'object') { var storedPhoto = await getStoredMedia(photo.id); if (storedPhoto && storedPhoto.blob) sourcePhotos.push(new File([storedPhoto.blob], storedPhoto.name, { type:storedPhoto.type || storedPhoto.blob.type })); } } var sourceDocuments = (record.files || []).map(function (file) { return { name:typeof file === 'object' ? file.name : file }; }); var synthesis = await generateEventSynthesis({ title:record.title, category:record.category, date:record.date, description:record.description, documents:sourceDocuments, photos:sourcePhotos }); var records = getRecords(); var recordIndex = records.findIndex(function (item) { return item.id === record.id; }); records[recordIndex] = Object.assign({}, records[recordIndex], { aiDescription:synthesis.aiDescription, keywords:synthesis.keywords, uncertainties:synthesis.uncertainties }); await saveRecords(records); showToast('已重新生成事实型事件摘要'); setTimeout(function () { location.reload(); }, 500); } catch (error) { button.disabled = false; button.textContent = '↻ 重新生成'; showToast('重新生成失败：' + error.message); } });
   function setEditing(container, button, editing) {
     var label = { title:'事件标题', category:'活动分类', date:'活动时间', description:'原始记录' }[button.dataset.editField];
     container.classList.toggle('is-editing', editing); button.classList.toggle('is-saving', editing); button.setAttribute('aria-pressed', String(editing)); button.setAttribute('aria-label', (editing ? '保存' : '编辑') + label); button.title = (editing ? '保存' : '编辑') + label;
@@ -504,32 +893,41 @@ function initDetail() {
     if (field === 'category') { display.textContent = value || '待分类'; display.className = 'detail-field-value tag ' + categoryClass(value); }
     if (field === 'description') display.textContent = value || '暂无文字描述';
   }
-  main.addEventListener('click', function (event) {
+  main.addEventListener('click', async function (event) {
     var button = event.target.closest('[data-edit-field]'); if (!button) return;
     var field = button.dataset.editField; var container = button.closest('[data-editable]'); var editor = container.querySelector('[data-field-editor]');
     if (!container.classList.contains('is-editing')) { editor.value = record[field] || ''; setEditing(container, button, true); editor.focus(); if (field === 'title') editor.select(); return; }
     var value = editor.value.trim(); if (field === 'title' && !value) value = '未命名经历';
     var records = getRecords(); var index = records.findIndex(function (item) { return item.id === record.id; }); if (index < 0) return;
-    records[index] = Object.assign({}, records[index], { [field]:value }); if (field === 'date') records[index].needsDate = !value; saveRecords(records); record = records[index]; updateFieldValue(field, value, container); setEditing(container, button, false); showToast('已保存' + ({ title:'事件标题', category:'活动分类', date:'活动时间', description:'原始记录' }[field]));
+    records[index] = Object.assign({}, records[index], { [field]:value }); if (field === 'date') records[index].needsDate = !value; await saveRecords(records); record = records[index]; updateFieldValue(field, value, container); setEditing(container, button, false); showToast('已保存' + ({ title:'事件标题', category:'活动分类', date:'活动时间', description:'原始记录' }[field]));
   });
   document.getElementById('detail-file-upload').addEventListener('change', function (e) { updateAttachments(record.id, 'files', Array.from(e.target.files || [])); });
   document.getElementById('detail-photo-upload').addEventListener('change', function (e) { updateAttachments(record.id, 'photos', Array.from(e.target.files || [])); });
   main.addEventListener('click', function (e) { var photoButton = e.target.closest('[data-remove-photo]'); var fileButton = e.target.closest('[data-remove-file]'); if (photoButton) removeAttachment(record.id, 'photos', Number(photoButton.dataset.removePhoto)); if (fileButton) removeAttachment(record.id, 'files', Number(fileButton.dataset.removeFile)); });
-  document.getElementById('delete-record').addEventListener('click', async function () { if (window.confirm('确定删除这条经历吗？删除后无法恢复。')) { var storedMedia = (record.files || []).concat(record.photos || []).filter(function (item) { return item && typeof item === 'object'; }); await Promise.all(storedMedia.map(function (item) { return deleteMedia(item.id); })); saveRecords(getRecords().filter(function (r) { return r.id !== record.id; })); location.href = '/library.html'; } });
+  document.getElementById('delete-record').addEventListener('click', async function () { if (window.confirm('确定删除这条经历吗？删除后无法恢复。')) { var storedMedia = (record.files || []).concat(record.photos || []).filter(function (item) { return item && typeof item === 'object'; }); await Promise.all(storedMedia.map(function (item) { return deleteMedia(item.id); })); await saveRecords(getRecords().filter(function (r) { return r.id !== record.id; })); location.href = '/library.html'; } });
 }
 
-async function updateAttachments(recordId, field, uploads) { if (!uploads.length) return; var stored = await Promise.all(uploads.map(storeMedia)); var records = getRecords(); var index = records.findIndex(function (r) { return r.id === recordId; }); records[index][field] = (records[index][field] || []).concat(stored); saveRecords(records); showToast('附件已加入记录'); setTimeout(function () { location.reload(); }, 350); }
-async function removeAttachment(recordId, field, attachmentIndex) { var records = getRecords(); var index = records.findIndex(function (r) { return r.id === recordId; }); var removed = records[index][field][attachmentIndex]; if (removed && typeof removed === 'object') await deleteMedia(removed.id); records[index][field].splice(attachmentIndex, 1); saveRecords(records); showToast('附件已删除'); setTimeout(function () { location.reload(); }, 350); }
+async function updateAttachments(recordId, field, uploads) { if (!uploads.length) return; var stored = await Promise.all(uploads.map(storeMedia)); var records = getRecords(); var index = records.findIndex(function (r) { return r.id === recordId; }); records[index][field] = (records[index][field] || []).concat(stored); await saveRecords(records); showToast('附件已加入记录'); setTimeout(function () { location.reload(); }, 350); }
+async function removeAttachment(recordId, field, attachmentIndex) { var records = getRecords(); var index = records.findIndex(function (r) { return r.id === recordId; }); var removed = records[index][field][attachmentIndex]; if (removed && typeof removed === 'object') await deleteMedia(removed.id); records[index][field].splice(attachmentIndex, 1); await saveRecords(records); showToast('附件已删除'); setTimeout(function () { location.reload(); }, 350); }
 
 function initSettings() {
   var settings = getSettings(); document.getElementById('deepseek-key').value = settings.deepseek || ''; document.getElementById('glm-key').value = settings.glm || ''; updateCategoryList(); updateApiStatus();
   document.getElementById('settings-form').addEventListener('submit', function (e) { e.preventDefault(); saveSettings(Object.assign({}, getSettings(), { deepseek:document.getElementById('deepseek-key').value.trim(), glm:document.getElementById('glm-key').value.trim() })); updateApiStatus(); showToast('设置已保存到当前浏览器'); });
-  document.getElementById('category-form').addEventListener('submit', function (e) { e.preventDefault(); var input = document.getElementById('custom-category'); var value = input.value.trim(); if (!value) return; var next = getSettings(); next.categories = (next.categories || []).concat(value).filter(function (v,i,a) { return a.indexOf(v) === i; }); saveSettings(next); input.value = ''; updateCategoryList(); showToast('自定义分类已添加'); });
+  document.getElementById('category-form').addEventListener('submit', async function (e) { e.preventDefault(); var input = document.getElementById('custom-category'); var value = input.value.trim(); if (!value) return; var next = getSettings(); next.categories = (next.categories || []).concat(value).filter(function (v,i,a) { return a.indexOf(v) === i; }); try { await saveCustomCategories(next); input.value = ''; updateCategoryList(); showToast('自定义分类已添加'); } catch (error) { showToast(error.message); } });
 }
 function updateApiStatus() { var settings = getSettings(); var status = document.getElementById('api-status'); var text = status.querySelector('.api-status-text'); var ready = Boolean(settings.deepseek || settings.glm); status.classList.toggle('ready', ready); text.textContent = ready ? '已保存 Key，本地调用接口已准备就绪' : '尚未连接真实模型，当前使用本地演示分析'; }
 function updateCategoryList() { var list = document.getElementById('custom-category-list'); if (list) list.innerHTML = (getSettings().categories || []).map(function (c) { return '<span class="custom-category">' + esc(c) + '</span>'; }).join('') || '<span class="help-text">还没有自定义分类</span>'; }
 
-function init() {
+function renderIcons() {
+  createIcons({
+    icons:{ ArrowRight, ArrowUp, BrainCircuit, CalendarDays, ChevronLeft, ChevronRight, Clock3, Database, Download, FileSearch, FileText, Home, LibraryBig, MessageCircle, MessageSquareMore, Mic, NotebookPen, Orbit, PenLine, Plus, RotateCcw, Save, Search, Settings2, Sparkles, WandSparkles, X },
+    attrs:{ 'stroke-width':1.8 }
+  });
+}
+
+async function init() {
+  var storageStatus = await syncArchiveFromProject();
+  if (storageStatus.ready) await migrateClusteredNotes();
   initShell();
   var page = getCurrentPage();
   if (page === 'home') initHome();
@@ -540,10 +938,10 @@ function init() {
   if (page === 'chat') initChat();
   if (page === 'detail') initDetail();
   if (page === 'settings') initSettings();
-  createIcons({
-    icons:{ ArrowRight, ArrowUp, BrainCircuit, CalendarDays, ChevronLeft, ChevronRight, Clock3, FileSearch, Home, LibraryBig, MessageCircle, Mic, NotebookPen, Orbit, PenLine, Plus, RotateCcw, Save, Search, Settings2, Sparkles, UserRound, WandSparkles },
-    attrs:{ 'stroke-width':1.8 }
-  });
+  renderIcons();
+  if (!storageStatus.ready && storageStatus.mode === 'cloud') showToast('云端暂不可用，当前显示本地缓存');
+  else if (!storageStatus.ready) showToast('项目共享存储暂不可用，当前显示本地缓存');
+  else if (storageStatus.migrated) showToast('本地数据已上传：' + storageStatus.records + ' 条事件，' + storageStatus.notes + ' 条随手记');
 }
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once:true });
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { init(); }, { once:true });
 else init();

@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>日历视图 · 迹</title>
+    <title>日历视图 · MyArchive</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -32,7 +33,14 @@
               </div>
               <div class="calendar-week-row" aria-hidden="true"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
               <div class="calendar-date-grid" id="calendar-grid"></div>
-              <div class="calendar-legend"><i></i><span>有记录</span></div>
+              <div class="calendar-legend" aria-label="记录类型图例">
+                <span><i class="calendar-dot academic"></i>学术与竞赛</span>
+                <span><i class="calendar-dot research"></i>探索与研究</span>
+                <span><i class="calendar-dot leadership"></i>领导与实践</span>
+                <span><i class="calendar-dot art"></i>艺术</span>
+                <span><i class="calendar-dot sport"></i>体育</span>
+                <span><i class="calendar-dot note"></i>随手记</span>
+              </div>
             </section>
             <section class="calendar-agenda" aria-live="polite">
               <header class="agenda-head"><div><h2 id="agenda-date"></h2><p id="agenda-count"></p></div></header>

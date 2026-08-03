@@ -2,7 +2,8 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>与 AI 对话 · 迹</title>
+    <title>与 AI 对话 · MyArchive</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/styles.css" />
@@ -18,7 +19,10 @@
         </div>
         <div class="messages" id="messages" aria-live="polite"></div>
         <form class="chat-input" id="chat-form">
-          <textarea id="chat-input" rows="1" maxlength="4000" placeholder="和我聊聊，或告诉我你想找什么" aria-label="对话内容"></textarea>
+          <div class="chat-composer-copy">
+            <div class="chat-references" id="chat-references" aria-label="正在追问的事件" hidden></div>
+            <textarea id="chat-input" rows="1" maxlength="4000" placeholder="和我聊聊，或告诉我你想找什么" aria-label="对话内容"></textarea>
+          </div>
           <button class="send-btn" type="submit" title="发送" aria-label="发送"><i data-lucide="arrow-up"></i></button>
         </form>
       </section>

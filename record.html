@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>开始记录 · 迹</title>
+    <title>开始记录 · MyArchive</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -19,20 +20,33 @@
             <div><div class="eyebrow">NEW MEMORY</div><h1 class="page-title">记录一段新经历</h1><p class="page-subtitle">不用整理得很完整，先把现场留下来。AI 会逐项阅读你提供的内容。</p></div>
           </div>
           <div class="form-layout">
-            <section class="form-panel">
+            <section class="form-panel record-form-panel">
               <form id="record-form" novalidate>
                 <div id="form-content">
                   <div class="form-heading">
-                    <div><h2>事件信息</h2><p>标题、分类和时间可以暂时留空。</p></div>
+                    <div><h2>先把经历说下来</h2><p>可以直接讲，也可以输入文字。其他信息稍后再补。</p></div>
                     <span class="required-note">文件 / 照片 / 描述至少一项</span>
                   </div>
+                  <div class="field capture-field">
+                    <div class="capture-head">
+                      <div>
+                        <span class="capture-kicker"><i data-lucide="sparkles"></i>AI 语音记录</span>
+                        <label class="field-label" for="event-description">发生了什么？</label>
+                        <span class="capture-help">不必整理措辞，想到哪里说到哪里</span>
+                      </div>
+                      <button type="button" class="voice-button voice-button-primary" id="voice-button" title="开始录音" aria-label="开始录音"><i data-lucide="mic"></i><span>开始语音记录</span></button>
+                    </div>
+                    <textarea id="event-description" placeholder="也可以在这里输入：发生了什么、你做了什么、哪个瞬间印象最深……"></textarea>
+                    <div class="voice-status-row"><span class="voice-live-dot" aria-hidden="true"></span><span class="voice-status" id="voice-status" aria-live="polite">单次最长 10 分钟，长录音将按顺序分段识别</span></div>
+                  </div>
+                  <div class="record-details-heading"><span>补充事件信息</span><small>日期已默认今天，AI 仅在文字有明确证据时调整</small></div>
                   <div class="field-row">
                     <div class="field">
                       <label class="field-label" for="event-title">事件标题 <span class="hint">可由 AI 生成</span></label>
                       <input id="event-title" type="text" placeholder="例如：第一次担任社团招新负责人" />
                     </div>
                     <div class="field">
-                      <label class="field-label" for="event-date">活动时间 <span class="hint">可稍后补充</span></label>
+                      <label class="field-label" for="event-date">活动时间 <span class="hint">默认今天</span></label>
                       <input id="event-date" type="date" />
                     </div>
                   </div>
@@ -52,11 +66,6 @@
                     <input class="file-input" id="photo-input" type="file" multiple accept="image/*" />
                     <div class="file-list" id="photo-list"></div>
                   </div>
-                  <div class="field">
-                    <label class="field-label" for="event-description">我想记下的内容 <span class="hint">不必写得完整</span></label>
-                    <textarea id="event-description" placeholder="发生了什么？你做了什么？哪个瞬间印象最深？"></textarea>
-                    <div class="voice-row"><button type="button" class="voice-button" id="voice-button" title="开始录音">●</button><span class="voice-status" id="voice-status">语音转文字 · 最长 10 分钟</span></div>
-                  </div>
                   <div class="form-actions"><span class="analyze-note">提交后将依次分析，不会同时占用同一 Key</span><a class="btn btn-quiet" href="/index.html">取消</a><button class="btn btn-primary" type="submit">保存并让 AI 整理 →</button></div>
                 </div>
                 <div class="progress-wrap" id="analysis-progress">
@@ -69,13 +78,6 @@
                 </div>
               </form>
             </section>
-            <aside class="side-panel">
-              <h3>接下来会发生什么</h3><p>AI 只会根据你留下的内容整理事实；不确定的信息会明确标出。</p>
-              <div class="side-step"><span class="side-step-num">01</span><div><strong>逐项读取</strong><span>文字、文件与图片会依次分析，避免请求冲突</span></div></div>
-              <div class="side-step"><span class="side-step-num">02</span><div><strong>补全结构</strong><span>生成缺失标题、建议分类，并尝试识别时间</span></div></div>
-              <div class="side-step"><span class="side-step-num">03</span><div><strong>保留意义</strong><span>形成详尽描述，提炼你的行动、困难与变化</span></div></div>
-              <div class="privacy-note">你上传的内容仅用于整理个人经历。API Key 只保存在当前浏览器中，可随时在设置里删除。</div>
-            </aside>
           </div>
         </main>
       </div>

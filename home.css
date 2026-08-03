@@ -21,7 +21,7 @@ body[data-page="home"] .home-main {
 body[data-page="home"] .home-page { min-width: 0; }
 
 body[data-page="home"] .home-hero {
-  min-height: clamp(410px, 50vh, 470px);
+  min-height: clamp(360px, 44vh, 420px);
   display: grid;
   grid-template-columns: minmax(285px, .82fr) minmax(460px, 1.62fr) minmax(250px, .72fr);
   align-items: center;
@@ -85,7 +85,7 @@ body[data-page="home"] .home-stats dt { color: var(--home-muted); font-size: 11p
 body[data-page="home"] .home-stats dd { margin: 5px 0 0; color: var(--home-ink); font: 700 28px var(--display); }
 
 body[data-page="home"] .home-planet-wrap {
-  height: clamp(410px, 50vh, 470px);
+  height: clamp(360px, 44vh, 420px);
   min-width: 0;
   position: relative;
   overflow: visible;
@@ -111,21 +111,6 @@ body[data-page="home"] .home-planet-stage canvas {
 }
 body[data-page="home"] .home-atlas-loading,
 body[data-page="home"] .home-atlas-empty { background: transparent; color: var(--home-muted); }
-body[data-page="home"] .planet-caption {
-  position: absolute;
-  left: 50%;
-  bottom: 2px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  transform: translateX(-50%);
-  color: #a0a4b3;
-  font-size: 10px;
-  white-space: nowrap;
-  pointer-events: none;
-}
-body[data-page="home"] .planet-caption i { width: 6px; height: 6px; border-radius: 50%; background: #69c798; box-shadow: 0 0 0 4px rgba(105, 199, 152, .13); }
-
 body[data-page="home"] .home-actions { display: grid; gap: 10px; align-self: center; padding: 0; }
 body[data-page="home"] .home-action {
   min-height: 82px;
@@ -164,7 +149,7 @@ body[data-page="home"] .home-tool-grid {
   grid-template-columns: minmax(0, .95fr) minmax(360px, 1.2fr) minmax(0, 1fr);
   gap: 18px;
   align-items: stretch;
-  margin-top: 32px;
+  margin-top: 14px;
 }
 body[data-page="home"] .home-tool { min-width: 0; display: flex; flex-direction: column; }
 body[data-page="home"] .home-tool-title { display: flex; align-items: center; gap: 9px; margin: 0 0 11px; padding-left: 3px; }
@@ -220,7 +205,8 @@ body[data-page="home"] .calendar-day { min-height: 24px; display: grid; place-it
 body[data-page="home"] .calendar-day:hover b { color: var(--home-purple); background: var(--home-purple-soft); }
 body[data-page="home"] .calendar-day b { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; font-weight: 500; }
 body[data-page="home"] .calendar-day.today b { color: #fff; background: var(--home-purple); box-shadow: 0 5px 12px rgba(102, 87, 232, .25); }
-body[data-page="home"] .calendar-day i { width: 4px; height: 4px; position: absolute; bottom: 0; border-radius: 50%; background: #62c997; }
+body[data-page="home"] .calendar-day .calendar-dot-group { bottom: -1px; gap: 1px; }
+body[data-page="home"] .calendar-day .calendar-dot { width: 3px; height: 3px; flex-basis: 3px; }
 body[data-page="home"] .home-panel-link {
   min-height: 39px;
   display: flex;

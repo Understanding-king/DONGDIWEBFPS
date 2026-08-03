@@ -1,5 +1,5 @@
 {
-  "name": "memory-atlas-mvp",
+  "name": "myarchive-mvp",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -8,7 +8,7 @@
     "clean": "node scripts/clean-dist.mjs",
     "build": "npm run clean && vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "check": "node scripts/check-project.mjs",
+    "check": "node scripts/check-project.mjs && node scripts/check-audio-chunks.mjs",
     "verify": "npm run check && npm run build"
   },
   "engines": {
@@ -18,6 +18,10 @@
     "vite": "^7.0.0"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.112.0",
+    "docx": "^9.7.1",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "lucide": "^0.468.0",
     "three": "^0.179.1"
   }

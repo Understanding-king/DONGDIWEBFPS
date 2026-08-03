@@ -8,6 +8,7 @@ const pages = ['index', 'record', 'chat', 'atlas', 'library', 'detail', 'setting
 const requiredFiles = [
   'README.md',
   'AGENTS.md',
+  '.env.example',
   'package.json',
   'vite.config.js',
   'app.js',
@@ -15,7 +16,11 @@ const requiredFiles = [
   'memory-atlas.js',
   'styles.css',
   'home.js',
-  'home.css'
+  'home.css',
+  'docs/cloud-database.md',
+  'docs/competition-state.md',
+  'docs/test-evidence.md',
+  'supabase/migrations/202608030001_archive_schema.sql'
 ];
 const ignoredDirectories = new Set(['.git', 'node_modules', 'dist']);
 const forbiddenLegacyTerms = [
@@ -57,6 +62,33 @@ for (const page of pages) {
 const viteConfig = existsSync(join(root, 'vite.config.js')) ? readFileSync(join(root, 'vite.config.js'), 'utf8') : '';
 for (const page of pages) {
   if (!viteConfig.includes(`'${page}'`)) fail(`vite.config.js does not declare page: ${page}`);
+}
+
+const cloudMigrationPath = join(root, 'supabase/migrations/202608030001_archive_schema.sql');
+const cloudMigration = existsSync(cloudMigrationPath) ? readFileSync(cloudMigrationPath, 'utf8') : '';
+const requiredCloudRules = [
+  'create table public.records',
+  'create table public.notes',
+  'create table public.categories',
+  'alter table public.records enable row level security',
+  'alter table public.notes enable row level security',
+  'alter table public.categories enable row level security',
+  'revoke all on table public.records from anon',
+  'revoke all on table public.notes from anon',
+  'revoke all on table public.categories from anon',
+  '(select auth.uid()) = user_id'
+];
+for (const rule of requiredCloudRules) {
+  if (!cloudMigration.toLowerCase().includes(rule)) fail(`Supabase migration is missing required rule: ${rule}`);
+}
+
+const envExamplePath = join(root, '.env.example');
+const envExample = existsSync(envExamplePath) ? readFileSync(envExamplePath, 'utf8') : '';
+for (const variable of ['VITE_SUPABASE_URL=', 'VITE_SUPABASE_PUBLISHABLE_KEY=']) {
+  if (!envExample.includes(variable)) fail(`.env.example is missing public variable: ${variable}`);
+}
+for (const secretName of ['SERVICE_ROLE', 'DATABASE_PASSWORD']) {
+  if (envExample.toUpperCase().includes(secretName)) fail(`.env.example must not contain server secret variable: ${secretName}`);
 }
 
 const files = walk(root);
