@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>个人成长画像 · MyArchive</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-page="growth">
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar"></aside>
+      <div class="content">
+        <header class="topbar" id="topbar"></header>
+        <main class="main growth-main" id="growth-main">
+          <header class="growth-page-head">
+            <div>
+              <div class="eyebrow">EVIDENCE-BASED GROWTH</div>
+              <h1 class="page-title">个人成长画像</h1>
+              <p class="page-subtitle">从经历证据看见当前优势与年度成长</p>
+            </div>
+            <div class="growth-page-actions">
+              <div class="growth-year-picker" aria-label="年份对比">
+                <label><span>当前年</span><select id="growth-current-year" aria-label="当前年份"></select></label>
+                <span class="growth-year-vs">vs</span>
+                <label><span>对比年</span><select id="growth-baseline-year" aria-label="对比年份"></select></label>
+              </div>
+              <button class="btn btn-primary growth-generate" id="growth-generate" type="button"><i data-lucide="sparkles"></i><span>生成画像</span></button>
+            </div>
+          </header>
+
+          <div class="growth-grounding-note" role="note">
+            <span class="growth-grounding-mark">i</span>
+            <p><strong>所有分数都来自经历原文。</strong> 本次画像使用可复算规则，只读取标题、分类、原始描述、日期与附件数量，不用 AI 补写证据。</p>
+          </div>
+
+          <section class="growth-overview-grid" aria-label="成长画像雷达图">
+            <article class="growth-chart-card" aria-labelledby="trait-radar-title">
+              <header class="growth-card-head">
+                <div><h2 id="trait-radar-title">经历特质雷达</h2><p id="trait-radar-note">正在读取经历证据…</p></div>
+                <span class="growth-card-badge">当前优势</span>
+              </header>
+              <div class="growth-chart-layout">
+                <div class="growth-radar" id="trait-radar" aria-live="polite"></div>
+                <aside class="growth-insights" id="trait-insights" aria-label="特质摘要"></aside>
+              </div>
+            </article>
+
+            <article class="growth-chart-card" aria-labelledby="boundary-radar-title">
+              <header class="growth-card-head">
+                <div><h2 id="boundary-radar-title">认知边界成长</h2><p id="boundary-radar-note">正在计算年度变化…</p></div>
+                <span class="growth-card-badge secondary">年度对比</span>
+              </header>
+              <div class="growth-chart-layout">
+                <div class="growth-radar" id="boundary-radar" aria-live="polite"></div>
+                <aside class="growth-insights" id="boundary-insights" aria-label="年度成长摘要"></aside>
+              </div>
+            </article>
+          </section>
+
+          <section class="growth-evidence-section" id="growth-evidence-section" aria-labelledby="growth-evidence-title">
+            <header class="growth-evidence-head">
+              <div>
+                <span class="growth-section-kicker" id="growth-evidence-kicker">特质证据</span>
+                <h2 id="growth-evidence-title">证据与解释</h2>
+                <p id="growth-evidence-summary">点击雷达维度，查看分数来自哪些经历。</p>
+              </div>
+              <a class="small-link" href="/library.html">查看全部经历 →</a>
+            </header>
+            <div class="growth-evidence-grid" id="growth-evidence-grid"></div>
+          </section>
+
+          <details class="growth-method">
+            <summary>评分如何计算</summary>
+            <div class="growth-method-grid">
+              <div><h3>特质分（0–100）</h3><p>经历数量 30 分 + 平均证据强度 40 分 + 成果清晰度 20 分 + 持续或可证明性 10 分。单条证据按“提及、行动、成果、持续/可证明”记 1–4 级。</p></div>
+              <div><h3>年度领域积分</h3><p>每条相关经历基础 +1；有明确成果 +2；有奖项、作品、展示或附件 +2；持续时间 +1；有反思 +1；跨领域 +1。成长值 = 当前年积分 − 对比年积分。</p></div>
+            </div>
+          </details>
+        </main>
+      </div>
+    </div>
+    <div id="global-modals"></div><div class="toast" id="toast"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

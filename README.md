@@ -39,6 +39,7 @@ npm run preview  # 本地预览已构建版本
 | `calendar.html` | 按日期查看事件与随手记 |
 | `notes.html` | 按时间查看所有随手记正文 |
 | `atlas.html` | 事件关系星球 |
+| `growth.html` | 个人成长画像、特质雷达与年度认知边界对比 |
 | `settings.html` | 本地 API Key 和自定义分类 |
 
 首页仅由 `home.js` 和 `home.css` 实现。不要再添加方案编号页面或方案选择页；历史十套首页设计已移出工作区并归档。
@@ -50,6 +51,7 @@ npm run preview  # 本地预览已构建版本
 | `app.js` | 页面壳、共享数据同步、记录、聊天和设置的页面初始化 |
 | `home.js` / `home.css` | 首页结构与首页专属样式 |
 | `memory-atlas.js` | Three.js 事件关系星球 |
+| `growth-profile.js` | 可追溯画像评分规则、雷达图与证据交互 |
 | `ai-client.js` | DeepSeek / GLM 请求封装 |
 | `styles.css` | 除首页外的共享布局与组件样式 |
 | `vite.config.js` | 多页面构建入口与本机文件存储接口 |

@@ -2,7 +2,7 @@ import { copyFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promis
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 
-const pages = ['index', 'record', 'chat', 'atlas', 'library', 'detail', 'settings', 'notes', 'calendar'];
+const pages = ['index', 'record', 'chat', 'atlas', 'library', 'detail', 'settings', 'notes', 'calendar', 'growth'];
 const archiveDirectory = resolve(import.meta.dirname, 'data');
 const archiveFile = resolve(archiveDirectory, 'archive-data.json');
 const archiveBackupFile = resolve(archiveDirectory, 'archive-data.backup.json');

@@ -8,6 +8,7 @@ import {
   readCloudMigrationState,
   upsertCloudCategories
 } from './cloud-store.js';
+import { initGrowthProfile } from './growth-profile.js';
 import {
   ArrowRight,
   ArrowUp,
@@ -30,6 +31,7 @@ import {
   Orbit,
   PenLine,
   Plus,
+  Radar,
   RotateCcw,
   Save,
   Search,
@@ -356,7 +358,7 @@ function getCompanionDays(records) {
 
 function navMarkup(active) {
   var items = [
-    ['home','home','首页','/index.html'], ['record','pen-line','开始记录','/record.html'], ['library','library-big','我的记录','/library.html'], ['chat','message-circle','AI 对话','/chat.html'], ['calendar','calendar-days','日历','/calendar.html'], ['notes','notebook-pen','我的随手记','/notes.html'], ['atlas','orbit','事件星球','/atlas.html']
+    ['home','home','首页','/index.html'], ['record','pen-line','开始记录','/record.html'], ['library','library-big','我的记录','/library.html'], ['chat','message-circle','AI 对话','/chat.html'], ['calendar','calendar-days','日历','/calendar.html'], ['notes','notebook-pen','我的随手记','/notes.html'], ['atlas','orbit','事件星球','/atlas.html'], ['growth','radar','成长画像','/growth.html']
   ];
   var html = '<a class="brand" href="/index.html" aria-label="MyArchive 首页"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">MyArchive</span><span class="brand-caption">PERSONAL ARCHIVE</span></a><nav class="sidebar-nav" aria-label="主要导航">';
   items.forEach(function (item) { html += '<a class="nav-item ' + (active === item[0] ? 'active' : '') + '" href="' + item[3] + '" title="' + item[2] + '" aria-label="' + item[2] + '"><span class="nav-icon"><i data-lucide="' + item[1] + '"></i></span><span>' + item[2] + '</span></a>'; });
@@ -367,7 +369,7 @@ function navMarkup(active) {
   return html;
 }
 function topbarMarkup(active) {
-  var labels = { home:'首页', record:'开始记录', chat:'与 AI 对话', atlas:'事件星球', library:'我的记录', notes:'我的随手记', calendar:'日历视图', detail:'记录详情', settings:'设置' };
+  var labels = { home:'首页', record:'开始记录', chat:'与 AI 对话', atlas:'事件星球', library:'我的记录', notes:'我的随手记', calendar:'日历视图', growth:'个人成长画像', detail:'记录详情', settings:'设置' };
   return '<div class="breadcrumb"><strong>' + (labels[active] || '') + '</strong></div><div class="top-actions"><a class="icon-button top-search" href="/library.html" title="搜索记录" aria-label="搜索记录"><i data-lucide="search"></i></a><a class="top-record" href="/record.html"><i data-lucide="plus"></i><span>开始记录</span></a><button class="icon-button" id="top-space" title="数据空间" aria-label="数据空间"><i data-lucide="database"></i></button></div>';
 }
 function initShell() {
@@ -920,7 +922,7 @@ function updateCategoryList() { var list = document.getElementById('custom-categ
 
 function renderIcons() {
   createIcons({
-    icons:{ ArrowRight, ArrowUp, BrainCircuit, CalendarDays, ChevronLeft, ChevronRight, Clock3, Database, Download, FileSearch, FileText, Home, LibraryBig, MessageCircle, MessageSquareMore, Mic, NotebookPen, Orbit, PenLine, Plus, RotateCcw, Save, Search, Settings2, Sparkles, WandSparkles, X },
+    icons:{ ArrowRight, ArrowUp, BrainCircuit, CalendarDays, ChevronLeft, ChevronRight, Clock3, Database, Download, FileSearch, FileText, Home, LibraryBig, MessageCircle, MessageSquareMore, Mic, NotebookPen, Orbit, PenLine, Plus, Radar, RotateCcw, Save, Search, Settings2, Sparkles, WandSparkles, X },
     attrs:{ 'stroke-width':1.8 }
   });
 }
@@ -936,6 +938,7 @@ async function init() {
   if (page === 'notes') initNotes();
   if (page === 'calendar') initCalendar();
   if (page === 'chat') initChat();
+  if (page === 'growth') initGrowthProfile({ records:getRecords(), onGenerated:showToast });
   if (page === 'detail') initDetail();
   if (page === 'settings') initSettings();
   renderIcons();

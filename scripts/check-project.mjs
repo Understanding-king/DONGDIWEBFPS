@@ -4,7 +4,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const pages = ['index', 'record', 'chat', 'atlas', 'library', 'detail', 'settings', 'notes', 'calendar'];
+const pages = ['index', 'record', 'chat', 'atlas', 'library', 'detail', 'settings', 'notes', 'calendar', 'growth'];
 const requiredFiles = [
   'README.md',
   'AGENTS.md',
@@ -17,6 +17,7 @@ const requiredFiles = [
   'styles.css',
   'home.js',
   'home.css',
+  'growth-profile.js',
   'docs/cloud-database.md',
   'docs/competition-state.md',
   'docs/test-evidence.md',

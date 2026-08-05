@@ -2,11 +2,11 @@
 
 ## Test Environment
 
-- Commit: `fcb9c78` baseline with uncommitted database-preparation changes
-- Local URL: `http://127.0.0.1:5177/` during the cloud-client verification run
+- Commit: `1e5272f` baseline with uncommitted growth-profile changes
+- Local URL: `http://127.0.0.1:5175/growth.html` during the growth-profile regression; earlier cloud checks used `http://127.0.0.1:5177/`
 - Cloud project: Supabase `myarchive-dev`, Tokyo `ap-northeast-1`
 - Tester: Codex browser regression
-- Date: 2026-08-03 Asia/Shanghai
+- Date: 2026-08-05 Asia/Shanghai
 
 ## Results
 
@@ -25,14 +25,22 @@
 | DB-CLOUD-SHARED-05 | failure | Cache valid cloud data, then start the same origin with an unavailable Supabase URL | Existing cache remains and the UI explains the dependency failure | Home rendered 35 records and displayed `云端暂不可用，当前显示本地缓存` | yes | - | Isolated browser regression on `127.0.0.1:5178`, 2026-08-03 |
 | DB-CLOUD-02 | privacy | Verify second-account isolation | Not applicable after the user chose a no-login single shared space | Removed from current architecture; publishable-key holders have full archive access | n/a | - | User architecture decision, 2026-08-03 |
 | DB-CLOUD-03 | cross-device | Create a note on one client and read it on the other | Same account sees the same note on both clients | Not run; Web and mobile clients are not connected yet | pending | - | Pending cloud test |
+| GROWTH-01 | static/build | Run `npm run verify` after adding the formal page | Project checks, scoring checks, and Vite production build pass | 10 pages and 40 source files checked; growth rules and Vite build passed | yes | - | Terminal output from 2026-08-05 |
+| GROWTH-02 | deterministic rules | Run the scoring fixture twice, then run with an empty array | Same input is identical, evidence retains record IDs, new domains follow `last=0/current>0`, and empty input stays at zero | All assertions passed | yes | - | `scripts/check-growth-profile.mjs` output |
+| GROWTH-03 | browser normal | Open the profile against the current shared archive | Both 8-axis radars render, default evidence follows the highest trait, and current/baseline counts are visible | 36 current records produced nonblank radars; the evidence section defaulted to creativity, the computed highest trait | yes | - | Browser DOM and screenshot, 2026-08-05 |
+| GROWTH-04 | traceability interaction | Click the `技术与 AI` growth dimension | Evidence summary and source-linked cards update to that dimension | Summary changed to `2026 年 23 分 − 2025 年 9 分 = +14`; 7 cards rendered and the first linked to `robotics-2026` | yes | - | Browser DOM check, 2026-08-05 |
+| GROWTH-05 | edge/year baseline | Change the current year from 2026 to 2025 | The comparison year remains earlier and a missing year is treated as a zero-record baseline | The control added 2024 and displayed `2024 vs 2025，对比 0 / 12 条经历` | yes | future-year comparison removed | Browser interaction, 2026-08-05 |
+| GROWTH-06 | responsive layout | Inspect 1280×720 and 390×844 viewports | No horizontal overflow, cards stack on mobile, and radar labels do not collide | Desktop and mobile `scrollWidth` equaled `clientWidth`; mobile cards stacked and both radars returned zero label collisions | yes | - | Browser geometry and screenshot, 2026-08-05 |
+| GROWTH-07 | browser action | Click `生成画像` after restoring 2026 vs 2025 | Current records are recalculated and the control returns from loading | Button returned to `生成画像`; toast displayed `画像已基于当前经历库重新生成` | yes | - | Browser state check, 2026-08-05 |
 
 ## Claims
 
-The Web shared-cloud schema, initial 35/31 import, read/write/delete path, reload behavior, and cache fallback are verified. Mobile synchronization, deployment hardening, abuse protection, and attachment sharing are not yet supported claims. The current no-login design provides no user isolation.
+The Web shared-cloud schema, initial import, read/write/delete path, reload behavior, cache fallback, and one evidence-grounded growth-profile run are verified. The growth scores are deterministic keyword-rule summaries of source records, not validated personality or learning measurements. Mobile synchronization, deployment hardening, abuse protection, attachment sharing, and three-run Demo stability are not yet supported claims. The current no-login design provides no user isolation.
 
 ## Demo Repetition
 
 - Run 1: Web shared-cloud read/write/delete and cleanup succeeded
 - Run 2: not run
 - Run 3: not run
+- Growth-profile focused run: source interaction, year edge case, generation action, and responsive layout succeeded once on 2026-08-05
 - Remaining unstable behavior: mobile synchronization and three consecutive full Demo runs are not yet verified

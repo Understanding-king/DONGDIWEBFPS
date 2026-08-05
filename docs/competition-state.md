@@ -1,6 +1,6 @@
 # Competition State
 
-Updated: 2026-08-03 Asia/Shanghai
+Updated: 2026-08-05 11:21 Asia/Shanghai
 
 ## Status
 
@@ -9,8 +9,8 @@ Updated: 2026-08-03 Asia/Shanghai
 - Time remaining: unknown
 - Current phase: 3 - Supabase single-space data-path validation
 - Phase pass condition: The no-login shared database path works end to end with a recorded fallback and explicit security limitation.
-- Verified evidence: Supabase `records`, `notes`, `categories`, and `archive_meta` have RLS enabled, one shared policy each, and no `user_id`; the Web client uploaded and read back 35 records and 31 notes. A temporary note was created through the Web UI, confirmed in Supabase, deleted, and the count returned to 31. Cloud failure preserved the 35-record cache.
-- Main blocker or risk: Anyone who obtains the publishable key can read and write the entire archive; this is acceptable only for the team's current single-user development decision.
+- Verified evidence: Supabase `records`, `notes`, `categories`, and `archive_meta` have RLS enabled, one shared policy each, and no `user_id`; the Web client uploaded and read back the shared archive, and its write/delete and cache fallback paths passed. The evidence-grounded growth page now produces two traceable radars from original record fields; deterministic rules, empty input, year switching, evidence navigation, desktop layout, and mobile layout have each passed one focused check.
+- Main blocker or risk: Anyone who obtains the publishable key can read and write the entire archive. Growth scores are explainable keyword-rule outputs, not a validated psychological or educational measurement, and can still need human review for wording context.
 - Next concrete deliverable: Connect the mobile client to the same shared tables and run one Web-to-mobile note synchronization test.
 - Acceptance condition: A temporary note created on one client appears on the other after refresh and is removed from both after cleanup.
 - Student owner: unassigned; the team must confirm ownership before implementation.
@@ -31,10 +31,10 @@ Updated: 2026-08-03 Asia/Shanghai
 - Target user: International high-school students.
 - Specific situation: Capturing and retrieving experiences for later reflection and application material.
 - Pain evidence: unverified
-- One-line solution: Record experiences once, then organize and retrieve them with AI assistance.
+- One-line solution: Record experiences once, then organize, retrieve, and turn them into traceable growth evidence with AI assistance and deterministic rules.
 - Core AI action: Summarize, classify, transcribe, and retrieve experience material.
-- Deterministic rules: Shared-record identity, date normalization, category constraints, storage boundaries, and explicit save/delete behavior.
-- User-visible result: A searchable experience archive with notes, calendar views, and relationship visualization.
+- Deterministic rules: Shared-record identity, date normalization, category constraints, storage boundaries, explicit save/delete behavior, trait evidence levels, normalized trait scores, and year-over-year domain points.
+- User-visible result: A searchable experience archive with notes, calendar views, relationship visualization, and a source-linked personal growth profile.
 - MVP: Existing local Web core plus one verified cross-device database slice.
 - Non-goals: Full Web deployment, cloud attachment storage, realtime collaboration, and production AI proxy in this database phase.
 - Three-minute Demo: unverified
@@ -42,16 +42,16 @@ Updated: 2026-08-03 Asia/Shanghai
 ## Validation And Stability
 
 - Highest technical risk: Cross-device shared writes without authentication expose the full archive to anyone holding the publishable key.
-- Spike result and evidence: Shared schema migration, 35/31 import, Web cloud read/write/delete, migration idempotency marker, and local-cache failure fallback are verified. Mobile behavior remains unverified. See `docs/test-evidence.md`.
-- Core Demo status: Web cloud flow works; mobile-to-Web synchronization is pending.
-- Test-set size: 1 cloud structure inspection, 1 initial import, 1 Web write/delete cleanup, 1 reload read, and 1 dependency-failure fallback completed; 0 mobile cross-device tests completed.
-- Known limitations: Attachments remain local; the shared database has no user authentication or abuse protection.
+- Spike result and evidence: Shared schema migration, initial import, Web cloud read/write/delete, migration idempotency marker, local-cache failure fallback, and the deterministic growth-profile slice are verified. Mobile database behavior remains unverified. See `docs/test-evidence.md`.
+- Core Demo status: Web cloud flow and one growth-profile browser run work; mobile-to-Web synchronization and three consecutive full Demo runs are pending.
+- Test-set size: Existing cloud checks plus 1 growth-rule fixture set, 1 empty-input rule check, 1 source-link interaction, 1 zero-baseline year check, 1 desktop layout check, and 1 mobile layout check completed; 0 mobile cross-device database tests completed.
+- Known limitations: Attachments remain local; the shared database has no user authentication or abuse protection; keyword scoring does not understand every negation or implicit context and must remain reviewable evidence, not an objective personality diagnosis.
 - Critical dependency fallback: Preserve the current local JSON and browser-cache path until cloud acceptance passes.
 - Recording/offline fallback: Existing local Demo; exact competition fallback unverified.
 
 ## Submission Readiness
 
-- Runnable Demo: Web shared-cloud flow and local fallback reverified on 2026-08-03; mobile flow pending
+- Runnable Demo: Web shared-cloud flow and local fallback reverified on 2026-08-03; growth profile passed one browser run on 2026-08-05; mobile flow pending
 - GitHub / README: repository exists; current local changes are not yet committed
 - Product document: partial README and database contract
 - Architecture and AI workflow: partial
