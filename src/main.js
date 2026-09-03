@@ -1605,8 +1605,6 @@ function buildWeapon() {
   camera.add(weaponGroup);
   camera.add(icecreamGroup);
   syncWeaponModel();
-  // Load the detailed AK after the procedural scene is ready. The procedural
-  // model remains visible until the external asset finishes loading.
   window.setTimeout(() => loadDetailedAkModel(), 80);
 }
 
@@ -1632,8 +1630,6 @@ async function loadDetailedAkModel() {
     const center = bounds.getCenter(new THREE.Vector3());
     if (!size.z || !size.y) throw new Error('AK model has invalid bounds');
 
-    // The source asset is authored along Z and in a much larger unit scale.
-    // Normalize it to the same first-person proportions as the built-in AK.
     const lengthScale = 2.34 / size.z;
     const scaleX = lengthScale * 1.12;
     object.scale.set(scaleX, lengthScale, lengthScale);
@@ -1677,8 +1673,6 @@ async function loadDetailedAkModel() {
     weaponGroup.add(object);
     syncWeaponModel();
   } catch (error) {
-    // Keep the built-in AK when the optional asset is unavailable (for example
-    // a cached deployment from before the model was uploaded).
     console.warn('Detailed AK model unavailable; using built-in model.', error);
   }
 }
