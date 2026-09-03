@@ -18,7 +18,7 @@ const requiredFiles = [
 for (const relativePath of requiredFiles) await access(path.join(root, relativePath));
 
 const envExample = await readFile(path.join(root, '.env.example'), 'utf8');
-for (const variable of ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', 'HOST', 'PORT']) {
+for (const variable of ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', 'VITE_SUPABASE_PUBLISHABLE_KEY', 'VITE_DUEL_WS_URL', 'HOST', 'PORT']) {
   if (!new RegExp(`^${variable}=`, 'm').test(envExample)) throw new Error(`.env.example 缺少 ${variable}`);
 }
 

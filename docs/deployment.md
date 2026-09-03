@@ -36,7 +36,7 @@ docker compose up --build -d
 curl http://127.0.0.1:3000/healthz
 ```
 
-返回 `{"ok":true,"service":"web-fps"}` 后，再把域名反向代理到 `127.0.0.1:3000`。修改前端 Supabase 变量后必须重新构建镜像。
+返回 `{"ok":true,"service":"web-fps"}` 后，再把域名反向代理到 `127.0.0.1:3000`。修改前端 Supabase 或 `VITE_DUEL_WS_URL` 变量后必须重新构建镜像。
 
 ## Node 云平台
 

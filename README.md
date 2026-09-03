@@ -30,7 +30,7 @@ Docker 部署可直接执行：
 docker compose up --build -d
 ```
 
-`compose.yaml` 会在镜像构建阶段注入 `VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY`。Vite 不会在容器启动后重新读取前端环境变量，所以修改这两个值后需要重新构建镜像。
+`compose.yaml` 会在镜像构建阶段注入 Supabase 两种公开 key 名称和可选的 `VITE_DUEL_WS_URL`。Vite 不会在容器启动后重新读取前端环境变量，所以修改这些值后需要重新构建镜像。
 
 ## Vercel 部署
 
