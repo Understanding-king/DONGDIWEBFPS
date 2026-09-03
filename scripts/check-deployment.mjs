@@ -32,7 +32,7 @@ for (const marker of ["request.url === '/healthz'", 'attachLanDuelServer(server)
 }
 
 const vercel = await readFile(path.join(root, 'vercel.json'), 'utf8');
-for (const marker of ['"buildCommand": "pnpm run build"', '"outputDirectory": "dist"']) {
+for (const marker of ['"buildCommand": "pnpm run build"', '"outputDirectory": "dist"', 'X-Content-Type-Options']) {
   if (!vercel.includes(marker)) throw new Error(`vercel.json 缺少 ${marker}`);
 }
 

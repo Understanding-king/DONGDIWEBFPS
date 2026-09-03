@@ -6,7 +6,7 @@
 
 仓库中的 `vercel.json` 已配置 Vite 构建。将 GitHub 仓库导入 Vercel，并设置 `VITE_SUPABASE_URL`，以及 `VITE_SUPABASE_ANON_KEY` 或 `VITE_SUPABASE_PUBLISHABLE_KEY` 其中一个。Vercel 负责静态前端；它不能承载当前 Node WebSocket 长连接。要启用房间大厅，在另一台支持 WebSocket 的 Node/Docker 主机运行本项目的生产服务器，并在 Vercel 环境变量中设置：
 
-可以直接使用 [Vercel 导入链接](https://vercel.com/new/clone?repository-url=https://github.com/Understanding-king/DONGDIWEBFPS)。
+可以直接使用 [Vercel 导入链接](https://vercel.com/new/clone?repository-url=https://github.com/Understanding-king/DONGDIWEBFPS)。在 Vercel 的 Environment Variables 中，Production 和 Preview 环境都要填写同一组 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`（或 `VITE_SUPABASE_PUBLISHABLE_KEY`）；配置了实时服务后，再填写 `VITE_DUEL_WS_URL`。每次修改 `VITE_*` 变量都要重新部署，变量只在构建时注入前端。
 
 ```text
 VITE_DUEL_WS_URL=wss://<realtime-host>/duel-ws
