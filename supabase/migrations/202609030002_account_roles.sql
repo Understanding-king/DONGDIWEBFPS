@@ -41,7 +41,7 @@ as $$
 begin
   if (auth.uid() is not null
      and (old.role is distinct from new.role or old.status is distinct from new.status)
-     and not public.is_account_admin() then
+     and not public.is_account_admin()) then
     raise exception 'Only an administrator can change account controls.' using errcode = '42501';
   end if;
   return new;
