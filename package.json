@@ -10,6 +10,7 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "start": "node server/production-server.js",
+    "accounts:special": "node scripts/create-special-accounts.mjs",
     "check:bot": "node scripts/check-bot-navigation.mjs",
     "check:collision": "node scripts/check-player-collision.mjs",
     "check:deploy": "node scripts/check-deployment.mjs",

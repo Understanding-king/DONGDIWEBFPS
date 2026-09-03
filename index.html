@@ -65,6 +65,17 @@
         </div>
       </section>
 
+      <section class="cheat-panel" id="cheat-panel" aria-label="懂帝控制台" hidden>
+        <div class="cheat-panel-head"><div><span>OWNER CONSOLE</span><strong>懂帝特权</strong></div><span class="cheat-status" id="cheat-status">仅人机对战</span></div>
+        <div class="cheat-grid">
+          <label><input type="checkbox" data-cheat="aimLock" />锁头</label>
+          <label><input type="checkbox" data-cheat="magicBullets" />魔法子弹</label>
+          <label><input type="checkbox" data-cheat="fly" />飞天</label>
+          <label><input type="checkbox" data-cheat="wallPhase" />穿墙</label>
+          <label><input type="checkbox" data-cheat="invincible" />锁血</label>
+        </div>
+      </section>
+
       <div class="duel-feed" id="duel-feed" hidden></div>
       <div class="kill-feed" id="kill-feed" hidden aria-live="polite" aria-label="击杀播报">
         <div class="kill-feed-items" id="kill-feed-items"></div>
@@ -292,6 +303,11 @@
                   </div>
                   <div class="friends-list" id="friends-list" aria-live="polite"></div>
                   <p class="friends-status" id="friends-status" aria-live="polite"></p>
+                </section>
+                <section class="admin-panel" id="admin-panel" hidden aria-labelledby="admin-panel-title">
+                  <div class="friends-panel-head"><div><span>ADMINISTRATION</span><h3 id="admin-panel-title">账号管理</h3></div><button class="icon-action" id="refresh-admin-accounts" type="button" aria-label="刷新账号列表" title="刷新账号列表"><i data-lucide="refresh-cw"></i></button></div>
+                  <div class="admin-account-list" id="admin-account-list"></div>
+                  <p class="friends-status" id="admin-status" aria-live="polite"></p>
                 </section>
               </div>
             </section>

@@ -33,15 +33,19 @@ import {
 } from 'lucide';
 import {
   getAccountSnapshot,
+  canManageAccounts,
+  canUseCheats,
   getFriends,
   getFriendCode,
   addFriend,
+  listManagedAccounts,
   removeFriend,
   restoreAccountSession,
   signInWithPassword,
   signOutAccount,
   signUpWithPassword,
-  updateAccountProfile
+  updateAccountProfile,
+  updateManagedAccount
 } from './services/account-service.js';
 
 const STORAGE_KEY = 'aim-trainer-local-v1';
@@ -378,6 +382,10 @@ const dom = {
   accountPassword: document.getElementById('account-password'),
   accountMessage: document.getElementById('account-message'),
   accountCloudStatus: document.getElementById('account-cloud-status'),
+  adminPanel: document.getElementById('admin-panel'),
+  adminAccountList: document.getElementById('admin-account-list'),
+  refreshAdminAccounts: document.getElementById('refresh-admin-accounts'),
+  adminStatus: document.getElementById('admin-status'),
   accountName: document.getElementById('account-name'),
   accountState: document.getElementById('account-state'),
   accountAvatar: document.getElementById('account-avatar'),
@@ -415,6 +423,8 @@ const dom = {
   duelFeed: document.getElementById('duel-feed'),
   killFeed: document.getElementById('kill-feed'),
   killFeedItems: document.getElementById('kill-feed-items'),
+  cheatPanel: document.getElementById('cheat-panel'),
+  cheatStatus: document.getElementById('cheat-status'),
   spawnShield: document.getElementById('spawn-shield'),
   weaponIndicator: document.getElementById('weapon-indicator'),
   weaponSlotLabel: document.getElementById('weapon-slot-label'),
@@ -505,6 +515,15 @@ const raycaster = new THREE.Raycaster();
 const clock = new THREE.Clock();
 const storage = readStorage();
 let accountSnapshot = getAccountSnapshot();
+let managedAccounts = [];
+let managedAccountsLoading = false;
+const duelCheats = {
+  aimLock: false,
+  magicBullets: false,
+  fly: false,
+  wallPhase: false,
+  invincible: false
+};
 
 let renderer;
 let scene;
@@ -690,6 +709,7 @@ const losDirection = new THREE.Vector3();
 const nameplateTargetPoint = new THREE.Vector3();
 const nameplateViewDirection = new THREE.Vector3();
 const nameplateCameraForward = new THREE.Vector3();
+const cheatTargetPoint = new THREE.Vector3();
 const opponentPoseState = {
   crouch: false,
   airborne: false,
@@ -2299,6 +2319,12 @@ function initUi() {
   dom.duelRetryButton.addEventListener('click', retryDuel);
   dom.duelMenuButton.addEventListener('click', showMainMenu);
   dom.mobileControlsToggle.addEventListener('click', toggleMobileControls);
+  dom.cheatPanel?.addEventListener('change', (event) => {
+    const input = event.target.closest('[data-cheat]');
+    if (!input || !canUseCheats()) return;
+    duelCheats[input.dataset.cheat] = Boolean(input.checked);
+    syncCheatUi();
+  });
   document.addEventListener('contextmenu', handleContextMenu);
 
   dom.roomCodeInput.addEventListener('input', () => {
@@ -2407,6 +2433,12 @@ function initLobbyUi() {
   dom.accountDialog?.addEventListener('click', (event) => {
     if (event.target === dom.accountDialog) dom.accountDialog.close();
   });
+  dom.refreshAdminAccounts?.addEventListener('click', () => refreshManagedAccounts());
+  dom.adminAccountList?.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-save-account]');
+    if (!button) return;
+    saveManagedAccount(button.dataset.saveAccount, button.closest('.admin-account-row'));
+  });
 
   dom.localProfileForm?.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -2512,7 +2544,9 @@ function syncLobbyData() {
   if (dom.profileName) dom.profileName.textContent = displayName;
   if (dom.profileAvatar) dom.profileAvatar.textContent = initial;
   if (dom.profileId) dom.profileId.textContent = accountSnapshot.id.toUpperCase();
-  if (dom.profileAccountState) dom.profileAccountState.textContent = accountSnapshot.signedIn ? '云端账号' : '本地档案';
+  if (dom.profileAccountState) dom.profileAccountState.textContent = accountSnapshot.signedIn
+    ? `云端账号 · ${roleLabel(accountSnapshot.role)}`
+    : '本地档案';
   if (dom.profileCloudState) dom.profileCloudState.textContent = accountSnapshot.signedIn ? 'ONLINE' : 'LOCAL';
   if (dom.profileSessions) dom.profileSessions.textContent = String(storage.recent?.length || 0);
   if (dom.profileBest) dom.profileBest.textContent = best ? String(best.score) : '--';
@@ -2568,8 +2602,118 @@ function syncLobbyData() {
     secondaryButton.disabled = !accountSnapshot.cloudConfigured;
     secondaryButton.textContent = accountSnapshot.signedIn ? '退出账号' : '注册';
   }
+  const adminVisible = accountSnapshot.signedIn && canManageAccounts();
+  if (dom.adminPanel) dom.adminPanel.hidden = !adminVisible;
+  if (adminVisible && managedAccountsLoadedFor !== accountSnapshot.id && !managedAccountsLoading) {
+    refreshManagedAccounts();
+  }
+  syncCheatUi();
   renderFriends();
   renderRoomInvites();
+}
+
+let managedAccountsLoadedFor = '';
+
+async function refreshManagedAccounts() {
+  if (!dom.adminAccountList || !canManageAccounts()) return;
+  managedAccountsLoading = true;
+  if (dom.adminStatus) dom.adminStatus.textContent = '正在读取账号列表...';
+  try {
+    managedAccounts = await listManagedAccounts();
+    managedAccountsLoadedFor = accountSnapshot.id;
+    renderManagedAccounts();
+    if (dom.adminStatus) dom.adminStatus.textContent = `共 ${managedAccounts.length} 个账号。`;
+  } catch (error) {
+    if (dom.adminStatus) dom.adminStatus.textContent = error?.message || '账号列表读取失败。';
+  } finally {
+    managedAccountsLoading = false;
+  }
+}
+
+function renderManagedAccounts() {
+  if (!dom.adminAccountList) return;
+  dom.adminAccountList.replaceChildren();
+  if (!managedAccounts.length) {
+    const empty = document.createElement('div');
+    empty.className = 'friends-empty';
+    empty.textContent = '还没有可管理的云端账号。';
+    dom.adminAccountList.append(empty);
+    return;
+  }
+  managedAccounts.forEach((account) => {
+    const row = document.createElement('div');
+    row.className = 'admin-account-row';
+    const name = document.createElement('strong');
+    name.textContent = account.displayName;
+    const email = document.createElement('small');
+    email.textContent = account.email || account.id;
+    const role = document.createElement('select');
+    role.setAttribute('aria-label', `${account.displayName} 角色`);
+    role.innerHTML = '<option value="player">普通</option><option value="admin">管理员</option><option value="owner">懂帝特权</option>';
+    role.value = account.role;
+    role.dataset.accountRole = '';
+    const status = document.createElement('select');
+    status.setAttribute('aria-label', `${account.displayName} 状态`);
+    status.innerHTML = '<option value="active">正常</option><option value="suspended">停用</option>';
+    status.value = account.status;
+    status.dataset.accountStatus = '';
+    const credits = document.createElement('input');
+    credits.type = 'number';
+    credits.min = '0';
+    credits.max = '999999';
+    credits.step = '1';
+    credits.value = String(account.credits);
+    credits.setAttribute('aria-label', `${account.displayName} 训练币`);
+    credits.dataset.accountCredits = '';
+    const save = document.createElement('button');
+    save.className = 'secondary-action';
+    save.type = 'button';
+    save.dataset.saveAccount = account.id;
+    save.textContent = '保存';
+    row.append(name, email, role, status, credits, save);
+    dom.adminAccountList.append(row);
+  });
+}
+
+async function saveManagedAccount(id, row) {
+  if (!row || !canManageAccounts()) return;
+  const button = row.querySelector('[data-save-account]');
+  const role = row.querySelector('[data-account-role]')?.value;
+  const status = row.querySelector('[data-account-status]')?.value;
+  const credits = row.querySelector('[data-account-credits]')?.value;
+  if (button) button.disabled = true;
+  if (dom.adminStatus) dom.adminStatus.textContent = '正在保存账号设置...';
+  try {
+    const updated = await updateManagedAccount({ id, role, status, credits });
+    managedAccounts = managedAccounts.map((account) => account.id === id ? updated : account);
+    renderManagedAccounts();
+    if (dom.adminStatus) dom.adminStatus.textContent = `${updated.displayName} 已更新。`;
+    if (id === accountSnapshot.id) {
+      accountSnapshot = await restoreAccountSession();
+      syncLobbyData();
+    }
+  } catch (error) {
+    if (dom.adminStatus) dom.adminStatus.textContent = error?.message || '账号设置保存失败。';
+    if (button) button.disabled = false;
+  }
+}
+
+function roleLabel(role) {
+  return role === 'owner' ? '懂帝特权' : role === 'admin' ? '管理员' : '普通玩家';
+}
+
+function syncCheatUi() {
+  const visible = isDuelMode() && canUseCheats() && appMode === 'bot';
+  if (dom.cheatPanel) dom.cheatPanel.hidden = !visible;
+  if (!visible) return;
+  dom.cheatPanel.querySelectorAll('[data-cheat]').forEach((input) => {
+    input.checked = Boolean(duelCheats[input.dataset.cheat]);
+  });
+  if (dom.cheatStatus) dom.cheatStatus.textContent = '仅人机对战 · 本机生效';
+}
+
+function isCheatEnabled(name) {
+  return appMode === 'bot' && duel.active && canUseCheats() && Boolean(duelCheats[name]);
 }
 
 function renderFriends() {
@@ -2745,6 +2889,7 @@ function showMainMenu() {
   if (opponentGroup) opponentGroup.visible = false;
   spawnPreviewTarget();
   resetView();
+  syncCheatUi();
 }
 
 function openRangePanel() {
@@ -2763,6 +2908,7 @@ function openRangePanel() {
   if (opponentGroup) opponentGroup.visible = false;
   spawnPreviewTarget();
   renderMenuStats();
+  syncCheatUi();
 }
 
 function openLanPanel() {
@@ -2786,6 +2932,7 @@ function openLanPanel() {
     startRoomListPolling();
   }
   syncLanUi();
+  syncCheatUi();
   const invitedRoom = getInvitedRoomCode();
   if (invitedRoom) {
     dom.roomCodeInput.value = invitedRoom;
@@ -2816,6 +2963,7 @@ function openBotPanel() {
   if (opponentGroup) opponentGroup.visible = false;
   targetGroup.visible = false;
   syncBotDifficultyUi();
+  syncCheatUi();
 }
 
 function resumeCurrentMode() {
@@ -3083,6 +3231,7 @@ function pauseRun() {
   dom.duelHud.hidden = !isDuelMode();
   dom.duelFeed.hidden = !isDuelMode();
   dom.targetClock.hidden = true;
+  syncCheatUi();
 }
 
 function resumeRangeRun() {
@@ -3814,13 +3963,23 @@ function castDuelShot(spreadOverride = currentSpread()) {
     .addScaledVector(shotUp, randomBetween(-spread, spread))
     .normalize();
 
+  const aimLock = isCheatEnabled('aimLock') || isCheatEnabled('magicBullets');
+  const bypassMap = isCheatEnabled('wallPhase') || isCheatEnabled('magicBullets');
+  if (aimLock && opponentGroup?.visible && opponentHead) {
+    opponentHead.getWorldPosition(cheatTargetPoint);
+    shotDirection.copy(cheatTargetPoint).sub(shotOrigin).normalize();
+  }
+
   raycaster.set(shotOrigin, shotDirection);
   raycaster.near = 0.04;
   raycaster.far = 80;
 
-  const hit = selectDuelShotIntersection(raycaster.intersectObjects(getDuelShotObjects(), false));
+  const shotObjects = bypassMap && appMode === 'bot'
+    ? duelHitMeshes
+    : getDuelShotObjects();
+  const hit = selectDuelShotIntersection(raycaster.intersectObjects(shotObjects, false));
   const rawEnd = hit ? hit.point.clone() : shotOrigin.clone().addScaledVector(shotDirection, 80);
-  const blockerHit = findActiveBlockerHit(shotOrigin, rawEnd, 0.02);
+  const blockerHit = bypassMap && appMode === 'bot' ? null : findActiveBlockerHit(shotOrigin, rawEnd, 0.02);
   const blockedByMap = Boolean(blockerHit);
   const end = blockedByMap ? blockerHit.point.clone() : rawEnd;
   let normal = null;
@@ -4075,9 +4234,10 @@ function updateMovement(delta) {
   const usingJoystick = mobileControlsEnabled() && mobileMoveVector.lengthSq() > 0.002;
   const forward = usingJoystick ? mobileMoveVector.y : resolveMoveAxis('KeyW', 'KeyS');
   const strafe = usingJoystick ? mobileMoveVector.x : resolveMoveAxis('KeyD', 'KeyA');
+  const flyEnabled = isCheatEnabled('fly');
   let wantsCrouch = crouchHeld && playerGrounded;
 
-  if (playerGrounded) {
+  if (!flyEnabled && playerGrounded) {
     const supportHeight = getActiveSupportHeight(camera.position.x, camera.position.z, playerVerticalOffset + OBSTACLE_CLEARANCE);
     if (playerVerticalOffset > supportHeight + OBSTACLE_CLEARANCE) {
       playerGrounded = false;
@@ -4089,7 +4249,20 @@ function updateMovement(delta) {
 
   if (jumpQueued && now > jumpQueuedUntil) consumeJumpQueue();
 
-  if (jumpQueued && playerGrounded) {
+  if (flyEnabled) {
+    playerGrounded = true;
+    playerVerticalVelocity = 0;
+    playerCrouching = false;
+    wantsCrouch = false;
+    if (jumpQueued) {
+      playerVerticalOffset = Math.min(12, playerVerticalOffset + 1.8);
+      consumeJumpQueue();
+      playJumpSound();
+    }
+    if (crouchHeld) playerVerticalOffset = Math.max(0, playerVerticalOffset - 5.5 * delta);
+  }
+
+  if (!flyEnabled && jumpQueued && playerGrounded) {
     crouchHeld = false;
     wantsCrouch = false;
     playerGrounded = false;
@@ -4099,7 +4272,7 @@ function updateMovement(delta) {
     consumeJumpQueue();
   }
 
-  if (!playerGrounded) {
+  if (!flyEnabled && !playerGrounded) {
     const previousFeetY = playerVerticalOffset;
     playerVerticalVelocity -= GRAVITY * delta;
     const nextFeetY = playerVerticalOffset + playerVerticalVelocity * delta;
@@ -4119,7 +4292,7 @@ function updateMovement(delta) {
     }
   }
 
-  playerCrouching = wantsCrouch && playerGrounded;
+  playerCrouching = wantsCrouch && playerGrounded && !flyEnabled;
   const targetEyeHeight = playerCrouching ? CROUCH_CAMERA_HEIGHT : CAMERA_HEIGHT;
   playerEyeHeight = THREE.MathUtils.damp(playerEyeHeight, targetEyeHeight, 18, delta);
 
@@ -4146,12 +4319,12 @@ function updateMovement(delta) {
   const previousX = camera.position.x;
   const previousZ = camera.position.z;
   const nextX = THREE.MathUtils.clamp(camera.position.x + moveX * movementSpeed * delta, bounds.minX, bounds.maxX);
-  const resolvedX = resolveActiveCollision(nextX, camera.position.z, PLAYER_COLLISION_RADIUS);
+  const resolvedX = isCheatEnabled('wallPhase') ? { x: nextX, z: camera.position.z } : resolveActiveCollision(nextX, camera.position.z, PLAYER_COLLISION_RADIUS);
   camera.position.x = THREE.MathUtils.clamp(resolvedX.x, bounds.minX, bounds.maxX);
   camera.position.z = THREE.MathUtils.clamp(resolvedX.z, bounds.minZ, bounds.maxZ);
 
   const nextZ = THREE.MathUtils.clamp(camera.position.z + moveZ * movementSpeed * delta, bounds.minZ, bounds.maxZ);
-  const resolvedZ = resolveActiveCollision(camera.position.x, nextZ, PLAYER_COLLISION_RADIUS);
+  const resolvedZ = isCheatEnabled('wallPhase') ? { x: camera.position.x, z: nextZ } : resolveActiveCollision(camera.position.x, nextZ, PLAYER_COLLISION_RADIUS);
   camera.position.x = THREE.MathUtils.clamp(resolvedZ.x, bounds.minX, bounds.maxX);
   camera.position.z = THREE.MathUtils.clamp(resolvedZ.z, bounds.minZ, bounds.maxZ);
 
@@ -4252,6 +4425,7 @@ function setupDuel(type, roomCode = '') {
   dom.targetClock.hidden = true;
   state = 'running';
   updateDuelHud();
+  syncCheatUi();
 }
 
 function beginBotDuel() {
@@ -4528,6 +4702,7 @@ function respawnBot() {
 function damageLocalPlayer(damage, headshot, attackerName) {
   const now = performance.now();
   if (duel.health <= 0 || !duel.active) return;
+  if (isCheatEnabled('invincible')) return;
   if (now < duel.protectedUntil) {
     if (now < duel.icecreamUntil) showIcecreamBlockFeedback(now);
     return;
@@ -4669,6 +4844,7 @@ function finishDuel(won, mainText, detailText) {
   dom.duelResultMain.textContent = mainText || (won ? '胜利' : '结束');
   dom.duelResultDetail.textContent = detailText || '本轮对枪结束。';
   dom.duelRetryButton.textContent = appMode === 'bot' ? '再战 BOT' : '回到房间';
+  syncCheatUi();
   setOverlay('duel-result');
 }
 

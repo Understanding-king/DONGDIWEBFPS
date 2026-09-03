@@ -31,9 +31,46 @@ export function getAccountSnapshot() {
     credits: cloudProfile?.credits ?? localProfile.credits,
     xp: cloudProfile?.xp ?? localProfile.xp,
     level: cloudProfile?.level ?? localProfile.level,
+    role: normalizeRole(cloudProfile?.role),
+    status: normalizeAccountStatus(cloudProfile?.status),
     friendCode: getFriendCode(),
     friends: getFriends()
   };
+}
+
+export function canManageAccounts() {
+  const role = getAccountSnapshot().role;
+  return role === 'admin' || role === 'owner';
+}
+
+export function canUseCheats() {
+  const role = getAccountSnapshot().role;
+  return role === 'owner' || role === 'admin';
+}
+
+export async function listManagedAccounts() {
+  if (!hasActiveCloudSession() || !canManageAccounts()) {
+    throw new Error('只有管理员账号可以查看账号列表。');
+  }
+  const rows = await cloudProfileRequest('/rest/v1/rpc/admin_list_profiles', { method: 'POST', body: {} });
+  return Array.isArray(rows) ? rows.map(normalizeManagedAccount).filter(Boolean) : [];
+}
+
+export async function updateManagedAccount({ id, role, status, credits }) {
+  if (!hasActiveCloudSession() || !canManageAccounts()) {
+    throw new Error('只有管理员账号可以管理账号。');
+  }
+  if (!isUuid(id)) throw new Error('账号 ID 无效。');
+  const payload = await cloudProfileRequest('/rest/v1/rpc/admin_update_profile', {
+    method: 'POST',
+    body: {
+      p_user_id: id,
+      p_role: normalizeRole(role),
+      p_status: normalizeAccountStatus(status),
+      p_credits: clampInteger(credits, 0, 999999, 0)
+    }
+  });
+  return normalizeManagedAccount(Array.isArray(payload) ? payload[0] : payload);
 }
 
 export function getFriends() {
@@ -132,6 +169,7 @@ export async function restoreAccountSession() {
     }
   }
   await hydrateCloudProfile();
+  ensureAccountActive();
   return getAccountSnapshot();
 }
 
@@ -165,6 +203,7 @@ export async function signInWithPassword({ email, password }) {
   });
   persistCloudSession(session);
   await hydrateCloudProfile();
+  ensureAccountActive();
   return getAccountSnapshot();
 }
 
@@ -245,7 +284,7 @@ function isSessionExpiring() {
 async function hydrateCloudProfile() {
   if (!hasActiveCloudSession()) return null;
   try {
-    const rows = await cloudProfileRequest(`/rest/v1/profiles?select=id,display_name,friend_code,credits,xp,level,equipped_primary&id=eq.${encodeURIComponent(cloudSession.user.id)}`, { method: 'GET' });
+    const rows = await cloudProfileRequest(`/rest/v1/profiles?select=id,display_name,friend_code,credits,xp,level,equipped_primary,role,status&id=eq.${encodeURIComponent(cloudSession.user.id)}`, { method: 'GET' });
     if (rows?.[0]) {
       cloudProfile = rows[0];
       localProfile = {
@@ -345,6 +384,22 @@ function normalizeCloudFriend(friend) {
   });
 }
 
+function normalizeManagedAccount(account) {
+  if (!account?.id) return null;
+  return {
+    id: String(account.id),
+    displayName: sanitizeDisplayName(account.display_name),
+    email: String(account.email || ''),
+    friendCode: normalizeFriendCode(account.friend_code),
+    credits: clampInteger(account.credits, 0, 999999, 0),
+    xp: clampInteger(account.xp, 0, 99999999, 0),
+    level: clampInteger(account.level, 1, 999, 1),
+    role: normalizeRole(account.role),
+    status: normalizeAccountStatus(account.status),
+    createdAt: account.created_at || ''
+  };
+}
+
 function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
 }
@@ -366,6 +421,18 @@ function sanitizeOptionalDisplayName(value) {
   return name || null;
 }
 
+function normalizeRole(value) {
+  return ['player', 'admin', 'owner'].includes(String(value || '').toLowerCase())
+    ? String(value).toLowerCase()
+    : 'player';
+}
+
+function normalizeAccountStatus(value) {
+  return ['active', 'suspended'].includes(String(value || '').toLowerCase())
+    ? String(value).toLowerCase()
+    : 'active';
+}
+
 function sanitizeEmail(value) {
   const email = String(value || '').trim().toLowerCase();
   if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error('请输入有效邮箱。');
@@ -378,6 +445,16 @@ function assertCloudConfigured() {
 
 function hasActiveCloudSession() {
   return cloudConfigured && Boolean(cloudSession?.access_token && cloudSession?.user?.id);
+}
+
+function ensureAccountActive() {
+  if (cloudProfile?.status === 'suspended') {
+    cloudSession = null;
+    cloudProfile = null;
+    cloudFriends = null;
+    localStorage.removeItem(CLOUD_SESSION_KEY);
+    throw new Error('这个账号已被停用，请联系管理员。');
+  }
 }
 
 function clampInteger(value, min, max, fallback) {
