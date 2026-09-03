@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import {
   Bot,
   Boxes,
@@ -1603,6 +1605,82 @@ function buildWeapon() {
   camera.add(weaponGroup);
   camera.add(icecreamGroup);
   syncWeaponModel();
+  // Load the detailed AK after the procedural scene is ready. The procedural
+  // model remains visible until the external asset finishes loading.
+  window.setTimeout(() => loadDetailedAkModel(), 80);
+}
+
+async function loadDetailedAkModel() {
+  if (!weaponGroup || !camera) return;
+  try {
+    const materials = await new Promise((resolve, reject) => {
+      const loader = new MTLLoader();
+      loader.setPath('/models/ak-47/');
+      loader.load('123456.mtl', resolve, undefined, reject);
+    });
+    materials.preload();
+
+    const object = await new Promise((resolve, reject) => {
+      const loader = new OBJLoader();
+      loader.setMaterials(materials);
+      loader.setPath('/models/ak-47/');
+      loader.load('ak-47.obj', resolve, undefined, reject);
+    });
+
+    const bounds = new THREE.Box3().setFromObject(object);
+    const size = bounds.getSize(new THREE.Vector3());
+    const center = bounds.getCenter(new THREE.Vector3());
+    if (!size.z || !size.y) throw new Error('AK model has invalid bounds');
+
+    // The source asset is authored along Z and in a much larger unit scale.
+    // Normalize it to the same first-person proportions as the built-in AK.
+    const lengthScale = 2.34 / size.z;
+    const scaleX = lengthScale * 1.12;
+    object.scale.set(scaleX, lengthScale, lengthScale);
+    object.position.set(-center.x * scaleX, -center.y * lengthScale, -center.z * lengthScale);
+    object.rotation.y = Math.PI;
+    object.traverse((child) => {
+      if (!child.isMesh) return;
+      child.frustumCulled = true;
+      child.castShadow = false;
+      child.receiveShadow = false;
+      if (child.material) {
+        const materialsToTune = Array.isArray(child.material) ? child.material : [child.material];
+        materialsToTune.forEach((material) => {
+          material.side = THREE.FrontSide;
+          material.needsUpdate = true;
+        });
+      }
+    });
+
+    const muzzleFlash = new THREE.Mesh(
+      new THREE.ConeGeometry(0.13, 0.44, 16, 1, true),
+      createFlashMaterial()
+    );
+    muzzleFlash.rotation.x = -Math.PI / 2;
+    muzzleFlash.position.set(0, 0.02, -1.25);
+    muzzleFlash.visible = false;
+    object.add(muzzleFlash);
+
+    const muzzleLight = new THREE.PointLight('#ffbd5a', 0, 2.6);
+    muzzleLight.position.copy(muzzleFlash.position);
+    object.add(muzzleLight);
+
+    const muzzleTip = new THREE.Object3D();
+    muzzleTip.position.set(0, 0.02, -1.28);
+    object.add(muzzleTip);
+
+    const previous = weaponModels.ak;
+    weaponGroup.remove(previous.group);
+    previous.group.visible = false;
+    weaponModels.ak = { group: object, muzzleTip, muzzleFlash, muzzleLight };
+    weaponGroup.add(object);
+    syncWeaponModel();
+  } catch (error) {
+    // Keep the built-in AK when the optional asset is unavailable (for example
+    // a cached deployment from before the model was uploaded).
+    console.warn('Detailed AK model unavailable; using built-in model.', error);
+  }
 }
 
 function createAkModel(materials) {
