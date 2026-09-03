@@ -45,6 +45,7 @@ import {
 } from './services/account-service.js';
 
 const STORAGE_KEY = 'aim-trainer-local-v1';
+const configuredDuelWsUrl = String(import.meta.env.VITE_DUEL_WS_URL || '').trim();
 const CROSSHAIR_COLORS = ['#f4f7fb', '#2ee6a6', '#ffbd5a', '#ff4d7d'];
 const DEFAULT_CROSSHAIR = { color: '#f4f7fb', size: 38, gap: 14, thickness: 2, dot: true };
 const DEFAULT_SETTINGS = { duration: 60, sensitivity: 3.2, crosshair: DEFAULT_CROSSHAIR, mobileControls: false, duelMap: 'park', primaryWeapon: 'ak' };
@@ -5077,8 +5078,7 @@ function disposeObject3D(object) {
 function connectLan() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
 
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(`${protocol}//${window.location.host}/duel-ws`);
+  ws = new WebSocket(getDuelWsUrl());
   dom.lanStatus.textContent = '正在连接局域网对战服务...';
 
   ws.addEventListener('open', () => {
@@ -5106,6 +5106,12 @@ function connectLan() {
     if (dom.roomConnectionLabel) dom.roomConnectionLabel.textContent = '连接失败';
     dom.lanStatus.textContent = '无法连接局域网服务。请用 pnpm run lan 或 pnpm run dev 启动项目。';
   });
+}
+
+function getDuelWsUrl() {
+  if (configuredDuelWsUrl) return configuredDuelWsUrl;
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}/duel-ws`;
 }
 
 function startRoomListPolling() {

@@ -2,6 +2,16 @@
 
 这份 MVP 使用一个 Node 生产进程同时提供静态页面和 `/duel-ws` WebSocket。云平台只要能运行 Docker 或 Node.js，并支持长连接即可。
 
+## Vercel 前端
+
+仓库中的 `vercel.json` 已配置 Vite 构建。将 GitHub 仓库导入 Vercel，并设置 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`。Vercel 负责静态前端；它不能承载当前 Node WebSocket 长连接。要启用房间大厅，在另一台支持 WebSocket 的 Node/Docker 主机运行本项目的生产服务器，并在 Vercel 环境变量中设置：
+
+```text
+VITE_DUEL_WS_URL=wss://<realtime-host>/duel-ws
+```
+
+修改该变量后需要在 Vercel 重新部署。未设置时，前端默认连接当前域名下的 `/duel-ws`，适合同一台 Node/Docker 主机同时提供页面和 WebSocket 的部署方式。
+
 ## Supabase
 
 在 Supabase SQL Editor 按顺序执行三份 `supabase/migrations/` 迁移，然后在 Auth 设置中确认允许 Email + Password 登录。前端只需要公开配置，不要使用 service-role key：

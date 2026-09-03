@@ -5,6 +5,7 @@ services:
       args:
         VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
         VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+        VITE_DUEL_WS_URL: ${VITE_DUEL_WS_URL:-}
     environment:
       HOST: 0.0.0.0
       PORT: 3000

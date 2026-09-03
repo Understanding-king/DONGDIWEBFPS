@@ -16,7 +16,8 @@ pnpm run dev      # 本地开发服务器
 pnpm run lan      # 局域网可访问服务器
 pnpm run build    # 生成 dist/
 pnpm run preview  # 本地预览构建版本
-pnpm run check    # 语法检查 + 生产构建
+pnpm run check    # 语法、BOT、部署、生产构建与 WebSocket 冒烟检查
+pnpm run check:smoke # 临时启动生产服务并验证房间开局链路
 pnpm start        # 生产 Node 服务器（dist + WebSocket）
 ```
 
@@ -29,6 +30,12 @@ docker compose up --build -d
 ```
 
 `compose.yaml` 会在镜像构建阶段注入 `VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY`。Vite 不会在容器启动后重新读取前端环境变量，所以修改这两个值后需要重新构建镜像。
+
+## Vercel 部署
+
+仓库已包含 `vercel.json`，在 Vercel 中导入 `Understanding-king/DONGDIWEBFPS` 后，构建命令和输出目录会自动识别。项目设置里添加 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`；如果要让 Vercel 前端连接独立的实时服务器，再添加 `VITE_DUEL_WS_URL=wss://你的实时服务器域名/duel-ws`。
+
+Vercel 部署的是静态前端，训练、BOT 对战、首页、仓库、商店、个人中心和 Supabase 账号可以直接使用。Vercel Functions 不保持长连接，因此当前房间大厅的 WebSocket 服务不能放在 Vercel 上；需要把 `server/production-server.js` 部署到支持 WebSocket 的 Node/Docker 主机，并通过 `VITE_DUEL_WS_URL` 指向它。若暂时不配置该变量，房间功能会按同源 `/duel-ws` 连接，适用于 Docker/Node 全栈部署。
 
 需要 Node.js `20.19+` 或 `22.12+`。
 

@@ -9,7 +9,8 @@ const requiredFiles = [
   '.env.example',
   'public/manifest.webmanifest',
   'server/production-server.js',
-  '.github/workflows/verify.yml'
+  '.github/workflows/verify.yml',
+  'vercel.json'
 ];
 
 for (const relativePath of requiredFiles) await access(path.join(root, relativePath));
@@ -27,6 +28,11 @@ for (const marker of ['pnpm install --frozen-lockfile', 'pnpm run build', 'HEALT
 const productionServer = await readFile(path.join(root, 'server/production-server.js'), 'utf8');
 for (const marker of ["request.url === '/healthz'", 'attachLanDuelServer(server)', 'process.env.PORT']) {
   if (!productionServer.includes(marker)) throw new Error(`生产服务器缺少 ${marker}`);
+}
+
+const vercel = await readFile(path.join(root, 'vercel.json'), 'utf8');
+for (const marker of ['"buildCommand": "pnpm run build"', '"outputDirectory": "dist"']) {
+  if (!vercel.includes(marker)) throw new Error(`vercel.json 缺少 ${marker}`);
 }
 
 const sourceFiles = ['src/main.js', 'src/services/account-service.js', 'server/duel-server.js', 'server/production-server.js'];

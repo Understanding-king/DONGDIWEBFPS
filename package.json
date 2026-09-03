@@ -12,7 +12,8 @@
     "start": "node server/production-server.js",
     "check:bot": "node scripts/check-bot-navigation.mjs",
     "check:deploy": "node scripts/check-deployment.mjs",
-    "check": "node --check src/main.js && node --check src/services/account-service.js && node --check server/duel-server.js && node --check server/production-server.js && pnpm run check:bot && pnpm run check:deploy && vite build"
+    "check:smoke": "node scripts/check-production-smoke.mjs",
+    "check": "node --check src/main.js && node --check src/services/account-service.js && node --check server/duel-server.js && node --check server/production-server.js && node --check scripts/check-production-smoke.mjs && pnpm run check:bot && pnpm run check:deploy && vite build && pnpm run check:smoke"
   },
   "engines": {
     "node": ">=20.19.0 || >=22.12.0"
