@@ -17,6 +17,7 @@ pnpm run lan      # 局域网可访问服务器
 pnpm run build    # 生成 dist/
 pnpm run preview  # 本地预览构建版本
 pnpm run check    # 语法、BOT、部署、生产构建与 WebSocket 冒烟检查
+pnpm run check:movement # 验证跳跃高度与可翻越掩体边界
 pnpm run check:smoke # 临时启动生产服务并验证房间开局链路
 pnpm start        # 生产 Node 服务器（dist + WebSocket）
 ```
