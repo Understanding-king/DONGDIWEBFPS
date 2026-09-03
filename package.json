@@ -11,10 +11,11 @@
     "preview": "vite preview --host 127.0.0.1",
     "start": "node server/production-server.js",
     "check:bot": "node scripts/check-bot-navigation.mjs",
+    "check:collision": "node scripts/check-player-collision.mjs",
     "check:deploy": "node scripts/check-deployment.mjs",
     "check:movement": "node scripts/check-player-movement.mjs",
     "check:smoke": "node scripts/check-production-smoke.mjs",
-    "check": "node --check src/main.js && node --check src/services/account-service.js && node --check server/duel-server.js && node --check server/production-server.js && node --check scripts/check-production-smoke.mjs && node --check scripts/check-player-movement.mjs && pnpm run check:bot && pnpm run check:movement && pnpm run check:deploy && vite build && pnpm run check:smoke"
+    "check": "node --check src/main.js && node --check src/services/account-service.js && node --check server/duel-server.js && node --check server/production-server.js && node --check scripts/check-production-smoke.mjs && node --check scripts/check-player-movement.mjs && node --check scripts/check-player-collision.mjs && pnpm run check:bot && pnpm run check:collision && pnpm run check:movement && pnpm run check:deploy && vite build && pnpm run check:smoke"
   },
   "engines": {
     "node": ">=20.19.0 || >=22.12.0"

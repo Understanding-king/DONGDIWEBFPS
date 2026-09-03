@@ -1003,7 +1003,7 @@ function applyBlockerHeights(blockers, heights) {
   });
 }
 
-function resolveServerCollision(x, z, blockers = [], radius = PLAYER_COLLISION_RADIUS, feetY = 0) {
+export function resolveServerCollision(x, z, blockers = [], radius = PLAYER_COLLISION_RADIUS, feetY = 0) {
   let resolvedX = x;
   let resolvedZ = z;
   let collided = false;
@@ -1278,7 +1278,7 @@ function sanitizeMap(value) {
   return MAP_CONFIGS[value] ? value : 'park';
 }
 
-function getMapConfig(map) {
+export function getMapConfig(map) {
   return MAP_CONFIGS[sanitizeMap(map)] || MAP_CONFIGS.park;
 }
 
