@@ -1,0 +1,19 @@
+{
+  "name": "对枪训练场",
+  "short_name": "对枪训练场",
+  "description": "3D 对枪训练、BOT 对战和好友房间。",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#080b0f",
+  "theme_color": "#10131a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

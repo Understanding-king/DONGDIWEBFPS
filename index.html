@@ -3,17 +3,541 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#d8ddd5" />
-    <title>MyArchive · 你的经历记忆库</title>
+    <meta name="theme-color" content="#10131a" />
+    <title>对枪训练场</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/styles.css" />
-    <link rel="stylesheet" href="/home.css" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="stylesheet" href="/src/styles.css" />
   </head>
-  <body data-page="home">
-    <div id="home-root"></div>
-    <script type="module" src="/home.js"></script>
+  <body>
+    <main class="trainer-app" id="app">
+      <canvas class="scene-canvas" id="scene" aria-label="3D 练枪靶场" tabindex="0"></canvas>
+
+      <button class="mobile-controls-switch" id="mobile-controls-toggle" type="button" aria-pressed="false">触屏按键 关</button>
+
+      <section class="hud" id="hud" aria-label="训练数据" hidden>
+        <div class="hud-cluster">
+          <div class="hud-stat">
+            <span>剩余</span>
+            <strong id="time-left">60.0</strong>
+          </div>
+          <div class="hud-stat">
+            <span>分数</span>
+            <strong id="score">0</strong>
+          </div>
+          <div class="hud-stat">
+            <span>命中</span>
+            <strong id="hits">0</strong>
+          </div>
+        </div>
+        <div class="hud-cluster right">
+          <div class="hud-stat compact">
+            <span>命中率</span>
+            <strong id="accuracy">100%</strong>
+          </div>
+          <div class="hud-stat compact">
+            <span>反应</span>
+            <strong id="reaction">--</strong>
+          </div>
+          <div class="hud-stat compact">
+            <span>连击</span>
+            <strong id="streak">0</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="duel-hud" id="duel-hud" aria-label="对枪数据" hidden>
+        <div class="duel-side self">
+          <span id="duel-mode-label">局域网 5v5</span>
+          <strong id="duel-score">0</strong>
+          <meter id="duel-health-meter" min="0" max="100" value="100"></meter>
+          <small>生命 <b id="duel-health">100</b></small>
+        </div>
+        <div class="duel-center">
+          <span id="duel-room-label">ROOM</span>
+          <strong>先到 10 杀</strong>
+        </div>
+        <div class="duel-side enemy">
+          <span id="duel-enemy-name">对手</span>
+          <strong id="duel-enemy-score">0</strong>
+          <meter id="duel-enemy-meter" min="0" max="100" value="100"></meter>
+          <small>生命 <b id="duel-enemy-health">100</b></small>
+        </div>
+      </section>
+
+      <div class="duel-feed" id="duel-feed" hidden></div>
+      <div class="kill-feed" id="kill-feed" hidden aria-live="polite" aria-label="击杀播报">
+        <div class="kill-feed-items" id="kill-feed-items"></div>
+      </div>
+      <div class="spawn-shield" id="spawn-shield" hidden aria-live="polite"><i data-lucide="shield-check"></i><span>复活保护</span></div>
+
+      <div class="weapon-indicator" id="weapon-indicator" hidden>
+        <span id="weapon-slot-label">主武器</span>
+        <strong id="weapon-name-label">AK-47</strong>
+        <small>Space 跳 · F 雪糕 · B/滚轮/1/2/3 武器 · Q 刀 · E 主武器</small>
+      </div>
+
+      <div class="icecream-status" id="icecream-status" hidden>F 巧乐兹 可用</div>
+
+      <div class="target-clock" id="target-clock" hidden>
+        <span id="target-zone">CENTER</span>
+        <meter id="target-meter" min="0" max="100" value="100"></meter>
+      </div>
+
+      <div class="scope-overlay" id="scope-overlay" hidden aria-hidden="true">
+        <span></span><span></span>
+      </div>
+
+      <div class="crosshair" id="crosshair" aria-hidden="true">
+        <span></span><span></span><span></span><span></span>
+      </div>
+
+      <div class="hit-marker" id="hit-marker" aria-hidden="true">
+        <span></span><span></span><span></span><span></span>
+      </div>
+
+      <div class="kill-feedback" id="kill-feedback" hidden aria-live="polite">
+        <span class="kill-skull" id="kill-skull">☠</span>
+        <strong id="kill-label">击杀</strong>
+      </div>
+
+      <div class="damage-vignette" id="damage-vignette" aria-hidden="true"></div>
+      <div class="death-flash" id="death-flash" aria-hidden="true"></div>
+      <div class="death-blood" id="death-blood" aria-hidden="true"></div>
+
+      <div class="mobile-controls" id="mobile-controls" hidden aria-label="触屏操作">
+        <div class="touch-look-hint">右侧空白滑动视角</div>
+        <div class="touch-joystick" id="touch-joystick" aria-label="移动摇杆">
+          <span class="touch-joystick-ring"></span>
+          <span class="touch-joystick-knob" id="touch-joystick-knob"></span>
+        </div>
+        <div class="touch-actions">
+          <button type="button" data-mobile-action="ads">开镜</button>
+          <button class="touch-fire" type="button" data-mobile-action="fire">开火</button>
+          <button type="button" data-mobile-action="jump">跳</button>
+          <button type="button" data-mobile-action="cycle-primary">换枪</button>
+          <button type="button" data-mobile-action="knife">刀</button>
+          <button type="button" data-mobile-action="primary">枪</button>
+          <button type="button" data-mobile-action="icecream">雪糕</button>
+        </div>
+      </div>
+
+      <section class="panel mode-panel" id="mode-panel" aria-labelledby="mode-title">
+        <aside class="lobby-rail" aria-label="主导航">
+          <div class="lobby-mark" aria-hidden="true">
+            <i data-lucide="crosshair"></i>
+          </div>
+          <nav class="lobby-nav">
+            <button class="active" type="button" data-lobby-view="home" aria-label="首页">
+              <i data-lucide="house"></i><span>首页</span>
+            </button>
+            <button type="button" data-lobby-view="play" aria-label="玩法">
+              <i data-lucide="swords"></i><span>玩法</span>
+            </button>
+            <button type="button" data-lobby-view="inventory" aria-label="仓库">
+              <i data-lucide="boxes"></i><span>仓库</span>
+            </button>
+            <button type="button" data-lobby-view="store" aria-label="商店">
+              <i data-lucide="shopping-bag"></i><span>商店</span>
+            </button>
+            <button type="button" data-lobby-view="profile" aria-label="个人中心">
+              <i data-lucide="user-round"></i><span>我的</span>
+            </button>
+          </nav>
+          <div class="lobby-build">PRE-ALPHA<br />BUILD 0.4</div>
+        </aside>
+
+        <div class="lobby-frame">
+          <header class="lobby-topbar">
+            <div class="game-identity">
+              <span>WEB FPS</span>
+              <h1 id="mode-title">对枪训练场</h1>
+            </div>
+            <div class="lobby-account-strip">
+              <div class="wallet" title="当前训练币">
+                <i data-lucide="coins"></i>
+                <strong id="player-credits">2,400</strong>
+              </div>
+              <button class="account-chip" id="account-button" type="button">
+                <span class="account-avatar" id="account-avatar">P</span>
+                <span><small id="account-state">LOCAL PROFILE</small><strong id="account-name">Player</strong></span>
+                <i data-lucide="user-round"></i>
+              </button>
+            </div>
+          </header>
+
+          <div class="lobby-content">
+            <section class="lobby-view active" data-lobby-panel="home" aria-label="首页">
+              <div class="command-stage">
+                <div class="command-copy">
+                  <span class="live-state"><b></b> 训练场开放</span>
+                  <p class="command-label">快速开始</p>
+                  <h2>标准 BOT<br />公园对枪</h2>
+                  <div class="command-meta">
+                    <span><i data-lucide="bot"></i> 标准</span>
+                    <span><i data-lucide="map-pin"></i> 公园</span>
+                    <span><i data-lucide="trophy"></i> 先到 10 杀</span>
+                  </div>
+                  <button class="launch-action" id="quick-play-button" type="button">
+                    <i data-lucide="play"></i><span>开始对枪</span>
+                  </button>
+                </div>
+                <div class="loadout-preview" aria-label="当前配装">
+                  <div class="loadout-heading"><span>STAGING BAY / 04</span><b id="home-weapon-name">AK-47</b></div>
+                  <div class="staging-bay">
+                    <div class="staging-grid" aria-hidden="true">
+                      <span class="grid-line line-a"></span><span class="grid-line line-b"></span><span class="grid-line line-c"></span>
+                      <span class="grid-axis axis-x"></span><span class="grid-axis axis-z"></span>
+                      <i class="map-node node-a"></i><i class="map-node node-b"></i><i class="map-node node-c"></i>
+                      <i class="map-route route-a"></i><i class="map-route route-b"></i>
+                    </div>
+                    <div class="staging-readout top-readout"><span>SECTOR</span><strong>PARK / NORTH</strong></div>
+                    <div class="weapon-silhouette" id="home-weapon-art" data-weapon-art="ak"><span>AK</span></div>
+                    <div class="staging-readout bottom-readout"><span>LOADOUT READY</span><strong>PRIMARY / 01</strong></div>
+                  </div>
+                  <div class="loadout-specs">
+                    <span id="home-weapon-type">突击步枪</span><span id="home-weapon-caliber">7.62 MM</span><span id="home-weapon-mode">全自动</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="home-dashboard">
+                <section class="mission-board">
+                  <div class="section-heading"><span>今日训练</span><small>2 / 3</small></div>
+                  <div class="mission-row"><i data-lucide="check"></i><span><b>完成一轮靶场</b><small>基础热身</small></span><strong>+150</strong></div>
+                  <div class="mission-row"><i data-lucide="target"></i><span><b>命中 30 次</b><small>当日进度</small></span><strong id="mission-hits">0 / 30</strong></div>
+                  <div class="mission-row"><i data-lucide="shield-check"></i><span><b>赢得一场对枪</b><small>任意难度</small></span><strong>+300</strong></div>
+                </section>
+                <section class="record-board">
+                  <div class="section-heading"><span>战斗档案</span><small>本机</small></div>
+                  <div class="record-grid">
+                    <div><span>靶场最佳</span><strong id="home-best-score">--</strong></div>
+                    <div><span>最近命中率</span><strong id="home-accuracy">--</strong></div>
+                    <div><span>主武器</span><strong id="home-primary">AK-47</strong></div>
+                    <div><span>档案等级</span><strong>Lv. 07</strong></div>
+                  </div>
+                </section>
+              </div>
+            </section>
+
+            <section class="lobby-view" data-lobby-panel="play" aria-label="玩法">
+              <div class="view-heading"><span>MATCH SELECT</span><h2>选择玩法</h2></div>
+              <div class="mode-grid game-mode-grid">
+                <button class="mode-card bot-card" id="bot-mode-button" type="button">
+                  <i data-lucide="bot"></i><span>人机对战</span><strong>AI 陪练</strong><small>单人 · 四档难度 · 先到 10 杀</small><b>进入</b>
+                </button>
+                <button class="mode-card lan-card" id="lan-mode-button" type="button">
+                  <i data-lucide="wifi"></i><span>局域网房间</span><strong>LAN 5V5</strong><small>最多 10 人 · BOT 补位 · 同步弹道</small><b>进入</b>
+                </button>
+                <button class="mode-card range-card" id="range-mode-button" type="button">
+                  <i data-lucide="crosshair"></i><span>基础训练</span><strong>六向球靶</strong><small>计时 · 命中率 · 反应时间</small><b>进入</b>
+                </button>
+              </div>
+            </section>
+
+            <section class="lobby-view" data-lobby-panel="inventory" aria-label="仓库">
+              <div class="view-heading"><span>LOADOUT</span><h2>武器仓库</h2></div>
+              <div class="inventory-layout">
+                <div class="weapon-list" id="weapon-list">
+                  <button class="weapon-row active" type="button" data-equip-weapon="ak"><span class="weapon-index">01</span><span><b>AK-47</b><small>突击步枪</small></span><em>已装备</em></button>
+                  <button class="weapon-row" type="button" data-equip-weapon="sniper"><span class="weapon-index">02</span><span><b>AWP</b><small>狙击步枪</small></span><em>已拥有</em></button>
+                  <button class="weapon-row" type="button" data-equip-weapon="shotgun"><span class="weapon-index">03</span><span><b>M870</b><small>泵动霰弹枪</small></span><em>已拥有</em></button>
+                  <div class="weapon-row locked"><span class="weapon-index"><i data-lucide="lock-keyhole"></i></span><span><b>赛季军需</b><small>受限武器槽位</small></span><em>未开放</em></div>
+                </div>
+                <div class="inventory-focus">
+                  <div class="weapon-silhouette large" id="inventory-weapon-art" data-weapon-art="ak"><span>AK</span></div>
+                  <div class="inventory-title"><span>主武器</span><h3 id="inventory-weapon-name">AK-47</h3></div>
+                  <div class="weapon-bars">
+                    <label><span>威力</span><meter id="weapon-power" min="0" max="100" value="72"></meter></label>
+                    <label><span>射速</span><meter id="weapon-rate" min="0" max="100" value="82"></meter></label>
+                    <label><span>稳定</span><meter id="weapon-control" min="0" max="100" value="58"></meter></label>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="lobby-view" data-lobby-panel="store" aria-label="商店">
+              <div class="view-heading"><span>REQUISITIONS</span><h2>武器商店</h2></div>
+              <div class="store-banner"><i data-lucide="package-open"></i><span><b>SEASON 01</b><small>本期军需 · 未解锁武器</small></span></div>
+              <div class="store-grid">
+                <article class="store-item"><span class="store-rarity">STANDARD</span><div class="weapon-silhouette compact" data-weapon-art="m4"><span>M4</span></div><h3>M4A1-X</h3><p>中近距离突击步枪</p><button type="button" disabled><i data-lucide="lock-keyhole"></i> 3,200</button></article>
+                <article class="store-item"><span class="store-rarity rare">ADVANCED</span><div class="weapon-silhouette compact" data-weapon-art="vector"><span>V9</span></div><h3>VECTOR-9</h3><p>高射速近战武器</p><button type="button" disabled><i data-lucide="lock-keyhole"></i> 4,600</button></article>
+                <article class="store-item"><span class="store-rarity elite">ELITE</span><div class="weapon-silhouette compact" data-weapon-art="deagle"><span>D50</span></div><h3>DE-50</h3><p>高伤害战术手枪</p><button type="button" disabled><i data-lucide="lock-keyhole"></i> 5,800</button></article>
+              </div>
+            </section>
+
+            <section class="lobby-view" data-lobby-panel="profile" aria-label="个人中心">
+              <div class="view-heading"><span>OPERATOR</span><h2>个人中心</h2></div>
+              <div class="profile-layout">
+                <section class="profile-identity">
+                  <div class="profile-avatar" id="profile-avatar">P</div>
+                  <div><span id="profile-account-state">本地档案</span><h3 id="profile-name">Player</h3><code id="profile-id">LOCAL-PLAYER</code></div>
+                  <button class="secondary-action" id="profile-account-button" type="button"><i data-lucide="log-in"></i> 账号管理</button>
+                </section>
+                <section class="profile-stats">
+                  <div><span>档案等级</span><strong id="profile-level">07</strong><small id="profile-xp">2,840 XP</small></div>
+                  <div><span>训练次数</span><strong id="profile-sessions">0</strong><small>本机记录</small></div>
+                  <div><span>最佳成绩</span><strong id="profile-best">--</strong><small>六向球靶</small></div>
+                  <div><span>同步状态</span><strong id="profile-cloud-state">LOCAL</strong><small>等待云端配置</small></div>
+                </section>
+                <section class="friends-panel" aria-labelledby="friends-title">
+                  <div class="friends-panel-head">
+                    <div><span>CONTACTS</span><h3 id="friends-title">好友</h3></div>
+                    <div class="friend-code"><span>好友码</span><code id="friend-code">PLAYER01</code><button class="icon-action" id="copy-friend-code" type="button" aria-label="复制好友码" title="复制好友码"><i data-lucide="copy"></i></button></div>
+                  </div>
+                  <div class="friend-add-form">
+                    <input class="text-input" id="friend-code-input" maxlength="64" placeholder="输入好友码或账号 ID" autocomplete="off" />
+                    <input class="text-input" id="friend-name-input" maxlength="16" placeholder="备注名（可选）" autocomplete="off" />
+                    <button class="primary-action" id="add-friend-button" type="button"><i data-lucide="user-plus"></i> 添加好友</button>
+                  </div>
+                  <div class="friends-list" id="friends-list" aria-live="polite"></div>
+                  <p class="friends-status" id="friends-status" aria-live="polite"></p>
+                </section>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <dialog class="account-dialog" id="account-dialog" aria-labelledby="account-title">
+        <form method="dialog" class="account-dialog-head">
+          <div><span>PLAYER ACCOUNT</span><h2 id="account-title">账号与档案</h2></div>
+          <button type="submit" aria-label="关闭"><i data-lucide="x"></i></button>
+        </form>
+        <div class="account-cloud-state" id="account-cloud-status"><i data-lucide="cloud"></i><span><b>本地开发模式</b><small>配置云端环境后可登录和注册</small></span></div>
+        <form class="account-form" id="local-profile-form">
+          <label for="profile-name-input">玩家名</label>
+          <input class="text-input" id="profile-name-input" maxlength="16" autocomplete="nickname" />
+          <button class="primary-action" type="submit">保存本地档案</button>
+        </form>
+        <form class="account-form cloud-account-form" id="cloud-account-form">
+          <label for="account-email">邮箱</label>
+          <input class="text-input" id="account-email" type="email" autocomplete="email" placeholder="operator@example.com" />
+          <label for="account-password">密码</label>
+          <input class="text-input" id="account-password" type="password" minlength="8" autocomplete="current-password" />
+          <div class="account-actions">
+            <button class="primary-action" type="submit" data-account-action="signin">登录</button>
+            <button class="secondary-action" type="button" data-account-action="signup">注册</button>
+          </div>
+        </form>
+        <p class="account-message" id="account-message" aria-live="polite"></p>
+      </dialog>
+
+      <section class="panel start-panel" id="start-panel" aria-labelledby="start-title" hidden>
+        <div class="panel-kicker">LOCAL 3D AIM TRAINER</div>
+        <h1 id="start-title">六向球靶训练</h1>
+        <p>点击开始后锁定鼠标，WASD 移动，Space 跳跃，Shift 长按蹲伏，鼠标瞄准，左键开火，右键切换开镜。B 在 AK/狙/喷子之间循环，Q 切爪刀，E 切回主武器；触屏模式不提供蹲伏键。</p>
+
+        <div class="control-grid">
+          <div class="control-block">
+            <div class="control-label">
+              <span>训练时长</span>
+              <strong id="duration-label">60 秒</strong>
+            </div>
+            <div class="segmented" aria-label="训练时长">
+              <button type="button" data-duration="30">30s</button>
+              <button type="button" data-duration="60">60s</button>
+              <button type="button" data-duration="90">90s</button>
+            </div>
+          </div>
+          <div class="control-block">
+            <label class="control-label" for="sensitivity">
+              <span>鼠标灵敏度</span>
+              <strong id="sensitivity-label">3.2</strong>
+            </label>
+            <input id="sensitivity" type="range" min="1" max="10" step="0.1" value="3.2" />
+          </div>
+          <div class="control-block crosshair-controls">
+            <div class="control-label">
+              <span>准星设置</span>
+              <strong id="crosshair-summary">白色 · 38</strong>
+            </div>
+            <div class="range-stack">
+              <label>
+                <span>大小</span>
+                <input id="crosshair-size" type="range" min="24" max="70" step="1" value="38" />
+              </label>
+              <label>
+                <span>间隙</span>
+                <input id="crosshair-gap" type="range" min="4" max="28" step="1" value="14" />
+              </label>
+              <label>
+                <span>粗细</span>
+                <input id="crosshair-thickness" type="range" min="1" max="6" step="1" value="2" />
+              </label>
+            </div>
+            <div class="crosshair-row">
+              <button class="toggle-button" id="crosshair-dot" type="button" aria-pressed="true">中心点 开</button>
+              <div class="color-swatches" aria-label="准星颜色">
+                <button type="button" data-crosshair-color="#f4f7fb" style="--swatch:#f4f7fb" aria-label="白色准星"></button>
+                <button type="button" data-crosshair-color="#2ee6a6" style="--swatch:#2ee6a6" aria-label="青绿色准星"></button>
+                <button type="button" data-crosshair-color="#ffbd5a" style="--swatch:#ffbd5a" aria-label="琥珀色准星"></button>
+                <button type="button" data-crosshair-color="#ff4d7d" style="--swatch:#ff4d7d" aria-label="粉红色准星"></button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="best-strip" id="best-strip">
+          <div>
+            <span>历史最佳</span>
+            <strong id="best-score">暂无</strong>
+          </div>
+          <div>
+            <span>最近命中率</span>
+            <strong id="best-accuracy">--</strong>
+          </div>
+          <div>
+            <span>最近反应</span>
+            <strong id="best-reaction">--</strong>
+          </div>
+        </div>
+
+        <div class="panel-actions">
+          <button class="primary-action" id="start-button" type="button">开始训练</button>
+          <button class="secondary-action" id="reset-history" type="button">清空历史</button>
+          <button class="secondary-action" id="start-back-button" type="button">返回模式</button>
+        </div>
+        <p class="status-line" id="status-line">浏览器会在训练开始时请求鼠标锁定。触屏按键打开后可直接进局，且不显示蹲伏键。</p>
+      </section>
+
+      <section class="panel lan-panel" id="lan-panel" aria-labelledby="lan-title" hidden>
+        <header class="room-lobby-header">
+          <div>
+            <div class="panel-kicker">MATCHMAKING / LAN</div>
+            <h2 id="lan-title">房间大厅</h2>
+            <p>选择一个开放房间加入，或创建自己的对枪房间。红蓝双方最多 5v5，房主可以用 BOT 补位。</p>
+          </div>
+          <div class="room-connection"><i data-lucide="radio"></i><span id="room-connection-label">连接中</span></div>
+        </header>
+
+        <div class="room-lobby-layout">
+          <section class="room-browser" aria-labelledby="room-browser-title">
+            <div class="room-section-head">
+              <div><span>OPEN ROOMS</span><h3 id="room-browser-title">公开房间</h3></div>
+              <button class="icon-action" id="refresh-room-list" type="button" aria-label="刷新房间列表" title="刷新房间列表"><i data-lucide="refresh-cw"></i></button>
+            </div>
+            <div class="room-list" id="room-list" aria-live="polite">
+              <div class="room-list-empty"><i data-lucide="wifi"></i><strong>正在扫描房间</strong><span>连接局域网对战服务后会显示可加入房间。</span></div>
+            </div>
+            <div class="room-code-join">
+              <label for="room-code-input"><span>ROOM CODE</span><strong id="room-code-display">----</strong></label>
+              <div><input class="text-input" id="room-code-input" maxlength="6" placeholder="输入房间码" autocomplete="off" /><button class="secondary-action" id="join-room-button" type="button">加入</button></div>
+            </div>
+          </section>
+
+          <aside class="room-dock" aria-label="房间操作">
+            <div class="room-dock-title"><span>YOUR STATION</span><strong id="room-station-state">未加入房间</strong></div>
+            <label class="room-field" for="player-name"><span>玩家名</span><input class="text-input" id="player-name" maxlength="16" value="Player" autocomplete="off" /></label>
+            <div class="room-field map-field">
+              <div><span>对枪地图</span><strong id="duel-map-label">公园</strong></div>
+              <div class="segmented" aria-label="对枪地图"><button type="button" data-duel-map="park">公园</button><button type="button" data-duel-map="ring">回型</button></div>
+            </div>
+            <div class="room-share"><span>HOST ADDRESS</span><div id="lan-addresses">正在连接本地对战服务...</div></div>
+            <section class="room-invite" aria-labelledby="room-invite-title">
+              <div class="room-section-head"><div><span>INVITE</span><h3 id="room-invite-title">邀请好友</h3></div><button class="icon-action" id="copy-room-invite" type="button" aria-label="复制房间邀请" title="复制房间邀请"><i data-lucide="send"></i></button></div>
+              <div class="room-invite-link"><input class="text-input" id="room-invite-link" readonly value="加入房间后生成邀请链接" /><button class="secondary-action" id="share-room-invite" type="button" disabled><i data-lucide="copy"></i> 复制链接</button></div>
+              <div class="room-friend-list" id="room-friend-list"></div>
+              <p class="room-invite-status" id="room-invite-status" aria-live="polite"></p>
+            </section>
+            <div class="room-roster"><div class="room-section-head"><div><span>ROSTER</span><h3>房间玩家</h3></div><strong id="room-roster-count">0 / 10</strong></div><div class="room-players" id="room-players">尚未加入房间</div></div>
+            <div class="room-actions">
+              <button class="primary-action" id="create-room-button" type="button"><i data-lucide="plus"></i> 创建房间</button>
+              <button class="secondary-action" id="add-bot-button" type="button" disabled><i data-lucide="bot"></i> 加人机</button>
+              <button class="secondary-action" id="ready-button" type="button" disabled>准备</button>
+              <button class="primary-action" id="lan-enter-button" type="button" hidden><i data-lucide="play"></i> 进入对枪</button>
+              <button class="secondary-action" id="leave-room-button" type="button" disabled>离开房间</button>
+              <button class="secondary-action" id="lan-back-button" type="button">返回玩法</button>
+            </div>
+          </aside>
+        </div>
+        <p class="status-line" id="lan-status">局域网服务会跟随 Vite 本地服务器启动。</p>
+      </section>
+
+      <section class="panel bot-panel" id="bot-panel" aria-labelledby="bot-title" hidden>
+        <div class="panel-kicker">BOT DUEL</div>
+        <h2 id="bot-title">人机对战</h2>
+        <p>本地 AI 会横移、追踪、开火和复活。先到 10 杀结束，适合热手和压枪练习。</p>
+        <div class="control-grid">
+          <div class="control-block">
+            <div class="control-label">
+              <span>难度</span>
+              <strong id="bot-difficulty-label">标准</strong>
+            </div>
+            <div class="segmented" aria-label="人机难度">
+              <button type="button" data-bot-difficulty="easy">轻松</button>
+              <button type="button" data-bot-difficulty="normal">标准</button>
+              <button type="button" data-bot-difficulty="hard">硬汉</button>
+              <button type="button" data-bot-difficulty="inferno">炼狱</button>
+            </div>
+          </div>
+          <div class="control-block map-control">
+            <div class="control-label">
+              <span>对枪地图</span>
+              <strong id="bot-map-label">公园</strong>
+            </div>
+            <div class="segmented" aria-label="人机地图">
+              <button type="button" data-duel-map="park">公园</button>
+              <button type="button" data-duel-map="ring">回型</button>
+            </div>
+          </div>
+        </div>
+        <div class="panel-actions">
+          <button class="primary-action" id="start-bot-button" type="button">开始人机</button>
+          <button class="secondary-action" id="bot-back-button" type="button">返回模式</button>
+        </div>
+        <p class="status-line" id="bot-status">进入后 WASD 移动，Space 跳，左键开火，右键切换开镜，B/滚轮/1/2/3 选主武器，Q 刀，E 主武器。炼狱每 6 发会校准一次命中。</p>
+      </section>
+
+      <section class="panel pause-panel" id="pause-panel" aria-labelledby="pause-title" hidden>
+        <div class="panel-kicker">PAUSED</div>
+        <h2 id="pause-title">训练已暂停</h2>
+        <p>点击继续会重新锁定鼠标。也可以结束本轮并回到菜单。</p>
+        <div class="panel-actions">
+          <button class="primary-action" id="resume-button" type="button">继续训练</button>
+          <button class="secondary-action" id="quit-button" type="button">结束本轮</button>
+        </div>
+      </section>
+
+      <section class="panel result-panel" id="result-panel" aria-labelledby="result-title" hidden>
+        <div class="panel-kicker">SESSION COMPLETE</div>
+        <h2 id="result-title">训练结果</h2>
+        <div class="result-score">
+          <span>本轮分数</span>
+          <strong id="result-score">0</strong>
+        </div>
+        <div class="result-grid">
+          <div><span>命中 / 射击</span><strong id="result-hits">0 / 0</strong></div>
+          <div><span>命中率</span><strong id="result-accuracy">0%</strong></div>
+          <div><span>平均反应</span><strong id="result-reaction">--</strong></div>
+          <div><span>最高连击</span><strong id="result-streak">0</strong></div>
+          <div><span>目标逃脱</span><strong id="result-expired">0</strong></div>
+          <div><span>历史最佳</span><strong id="result-best">0</strong></div>
+        </div>
+        <div class="recent-block">
+          <span>最近记录</span>
+          <div class="recent-list" id="recent-list"></div>
+        </div>
+        <div class="panel-actions">
+          <button class="primary-action" id="retry-button" type="button">再来一局</button>
+          <button class="secondary-action" id="menu-button" type="button">回到菜单</button>
+        </div>
+      </section>
+
+      <section class="panel duel-result-panel" id="duel-result-panel" aria-labelledby="duel-result-title" hidden>
+        <div class="panel-kicker">DUEL COMPLETE</div>
+        <h2 id="duel-result-title">对枪结束</h2>
+        <div class="result-score">
+          <span>胜负</span>
+          <strong id="duel-result-main">--</strong>
+        </div>
+        <p id="duel-result-detail">本轮对枪结束。</p>
+        <div class="panel-actions">
+          <button class="primary-action" id="duel-retry-button" type="button">再来一局</button>
+          <button class="secondary-action" id="duel-menu-button" type="button">返回模式</button>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
   </body>
 </html>
