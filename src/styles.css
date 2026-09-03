@@ -2355,6 +2355,31 @@ body.is-scoped .crosshair {
   isolation: isolate;
 }
 
+.weapon-preview-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .22s ease;
+}
+
+.weapon-silhouette.has-3d-preview .weapon-preview-canvas {
+  opacity: 1;
+}
+
+.weapon-silhouette.has-3d-preview > span {
+  visibility: hidden;
+}
+
+.weapon-silhouette.has-3d-preview::before,
+.weapon-silhouette.has-3d-preview::after {
+  display: none;
+}
+
 .weapon-silhouette::before,
 .weapon-silhouette::after {
   content: "";

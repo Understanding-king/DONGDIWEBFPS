@@ -251,8 +251,8 @@ const BOT_SETTINGS = {
     prefireOnSight: true
   }
 };
-const WEAPON_HIP_POSITION = new THREE.Vector3(0.48, -0.43, -0.9);
-const WEAPON_ADS_POSITION = new THREE.Vector3(-0.009, -0.221, -0.86);
+const WEAPON_HIP_POSITION = new THREE.Vector3(0.48, -0.48, -0.9);
+const WEAPON_ADS_POSITION = new THREE.Vector3(-0.009, -0.245, -0.86);
 const WEAPON_HIP_ROTATION = new THREE.Euler(-0.03, -0.09, 0.02);
 const WEAPON_ADS_ROTATION = new THREE.Euler(-0.018, 0, 0);
 const SNIPER_HIP_POSITION = new THREE.Vector3(0.45, -0.41, -0.96);
@@ -539,6 +539,8 @@ let muzzleTip;
 let muzzleFlash;
 let muzzleLight;
 let weaponModels = {};
+const weaponPreviews = [];
+let previewAkSource = null;
 let knifeGroup;
 let icecreamGroup;
 let opponentGroup;
@@ -808,6 +810,7 @@ function initScene() {
   buildArena();
   buildTarget();
   buildWeapon();
+  initWeaponPreviews();
   buildOpponent();
   resetView();
 }
@@ -1630,7 +1633,7 @@ async function loadDetailedAkModel() {
     const center = bounds.getCenter(new THREE.Vector3());
     if (!size.z || !size.y) throw new Error('AK model has invalid bounds');
 
-    const lengthScale = 2.34 / size.z;
+    const lengthScale = 2.02 / size.z;
     const scaleX = lengthScale * 1.12;
     object.scale.set(scaleX, lengthScale, lengthScale);
     object.position.set(-center.x * scaleX, -center.y * lengthScale, -center.z * lengthScale);
@@ -1672,9 +1675,95 @@ async function loadDetailedAkModel() {
     weaponModels.ak = { group: object, muzzleTip, muzzleFlash, muzzleLight };
     weaponGroup.add(object);
     syncWeaponModel();
+    previewAkSource = object;
+    weaponPreviews.forEach((preview) => setWeaponPreviewModel(preview, object));
   } catch (error) {
     console.warn('Detailed AK model unavailable; using built-in model.', error);
   }
+}
+
+function initWeaponPreviews() {
+  document.querySelectorAll('.weapon-silhouette .weapon-preview-canvas').forEach((canvas) => {
+    const container = canvas.parentElement;
+    if (!container) return;
+    try {
+      const previewRenderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'high-performance' });
+      previewRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+      previewRenderer.outputColorSpace = THREE.SRGBColorSpace;
+      const previewScene = new THREE.Scene();
+      const previewCamera = new THREE.PerspectiveCamera(28, 1, 0.01, 40);
+      previewCamera.position.set(0, 0.12, 4.2);
+      previewCamera.lookAt(0, 0, 0);
+      previewScene.add(new THREE.HemisphereLight('#d8f5ff', '#090d12', 1.65));
+      const key = new THREE.DirectionalLight('#ffffff', 2.8);
+      key.position.set(2.5, 3.8, 4.5);
+      previewScene.add(key);
+      const rim = new THREE.PointLight('#2ee6a6', 2.2, 8);
+      rim.position.set(-2.8, 1.2, 1.8);
+      previewScene.add(rim);
+      const preview = { canvas, container, renderer: previewRenderer, scene: previewScene, camera: previewCamera, model: null, angle: 0 };
+      weaponPreviews.push(preview);
+      setWeaponPreviewModel(preview, previewAkSource || weaponModels.ak?.group);
+      resizeWeaponPreview(preview);
+    } catch (error) {
+      canvas.hidden = true;
+      console.warn('Weapon preview unavailable.', error);
+    }
+  });
+}
+
+function setWeaponPreviewModel(preview, source) {
+  if (!preview?.scene || !source) return;
+  if (preview.model) preview.scene.remove(preview.model);
+  const sourceClone = source.clone(true);
+  sourceClone.traverse((child) => {
+    if (!child.isMesh) return;
+    child.frustumCulled = false;
+    if (child.material) {
+      const cloneMaterial = (material) => {
+        const previewMaterial = material.clone();
+        previewMaterial.side = THREE.DoubleSide;
+        return previewMaterial;
+      };
+      child.material = Array.isArray(child.material)
+        ? child.material.map(cloneMaterial)
+        : cloneMaterial(child.material);
+    }
+  });
+  const model = new THREE.Group();
+  model.add(sourceClone);
+  model.scale.setScalar(1.1);
+  model.position.set(0.04, -0.02, 0);
+  model.rotation.x = -0.12;
+  model.rotation.y = -Math.PI / 2 + 0.12;
+  preview.scene.add(model);
+  preview.model = model;
+  preview.container.classList.toggle('has-3d-preview', selectedPrimaryWeapon === 'ak');
+}
+
+function resizeWeaponPreview(preview) {
+  if (!preview?.renderer || !preview.container) return;
+  const rect = preview.container.getBoundingClientRect();
+  const width = Math.max(1, Math.floor(rect.width));
+  const height = Math.max(1, Math.floor(rect.height));
+  preview.camera.aspect = width / height;
+  preview.camera.updateProjectionMatrix();
+  preview.renderer.setSize(width, height, false);
+}
+
+function renderWeaponPreviews(delta) {
+  weaponPreviews.forEach((preview) => {
+    if (!preview.model || preview.container.offsetParent === null) return;
+    preview.angle += delta * 0.34;
+    preview.model.rotation.y = -Math.PI / 2 + 0.12 + Math.sin(preview.angle) * 0.11;
+    preview.renderer.render(preview.scene, preview.camera);
+  });
+}
+
+function syncWeaponPreviewVisibility() {
+  weaponPreviews.forEach((preview) => {
+    preview.container.classList.toggle('has-3d-preview', selectedPrimaryWeapon === 'ak' && Boolean(preview.model));
+  });
 }
 
 function createAkModel(materials) {
@@ -2639,6 +2728,7 @@ function syncLobbyData() {
     dom.inventoryWeaponArt.dataset.weaponArt = selectedPrimaryWeapon;
     dom.inventoryWeaponArt.querySelector('span').textContent = weapon.short;
   }
+  syncWeaponPreviewVisibility();
   document.querySelectorAll('[data-equip-weapon]').forEach((button) => {
     const equipped = button.dataset.equipWeapon === selectedPrimaryWeapon;
     button.classList.toggle('active', equipped);
@@ -4260,6 +4350,7 @@ function render() {
   updateDynamicCrosshair();
   updateTargetClock(now);
   renderer.render(scene, camera);
+  renderWeaponPreviews(delta);
   requestAnimationFrame(render);
 }
 
@@ -6431,6 +6522,7 @@ function resize() {
   camera.aspect = width / Math.max(1, height);
   camera.updateProjectionMatrix();
   renderer.setSize(width, height, false);
+  weaponPreviews.forEach(resizeWeaponPreview);
 }
 
 function readStorage() {
