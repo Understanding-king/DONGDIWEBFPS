@@ -1096,8 +1096,8 @@ function removeClientFromRoom(client, reason = '') {
   const room = getClientRoom(client);
   if (!room) return;
 
+  const wasStarted = room.started;
   room.players.delete(client.slot);
-  room.started = false;
   room.updatedAt = Date.now();
   client.roomCode = '';
   client.slot = '';
@@ -1115,12 +1115,26 @@ function removeClientFromRoom(client, reason = '') {
     room.hostId = humans[0].id;
   }
 
-  room.players.forEach((player) => {
-    player.ready = player.isBot;
-    player.alive = true;
-    player.health = PLAYER_HEALTH;
-    if (reason) send(player, { type: 'match-event', message: reason });
-  });
+  const players = Array.from(room.players.values());
+  const hasRed = players.some((player) => player.team === 'red');
+  const hasBlue = players.some((player) => player.team === 'blue');
+  if (wasStarted && (!hasRed || !hasBlue)) {
+    const winnerTeam = hasRed ? 'red' : 'blue';
+    const winner = players.find((player) => player.team === winnerTeam);
+    endMatch(room, winnerTeam, winner?.id || '');
+    if (reason) broadcastRoom(room, { type: 'match-event', message: reason });
+    return;
+  }
+
+  if (!wasStarted) {
+    room.started = false;
+    players.forEach((player) => {
+      player.ready = player.isBot;
+      player.alive = true;
+      player.health = PLAYER_HEALTH;
+    });
+  }
+  if (reason) broadcastRoom(room, { type: 'match-event', message: reason });
   broadcastRoomUpdate(room);
   broadcastRoomList();
 }

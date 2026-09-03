@@ -19,7 +19,8 @@ server.stderr.on('data', (chunk) => { serverOutput += String(chunk); });
 try {
   await waitForHealth(`${origin}/healthz`);
   const result = await checkRoomFlow(`ws://127.0.0.1:${port}/duel-ws`);
-  console.log(`Production smoke passed (healthz, room ${result.roomCode}, ${result.playerCount} players)`);
+  const disconnectResult = await checkDisconnectFlow(`ws://127.0.0.1:${port}/duel-ws`);
+  console.log(`Production smoke passed (healthz, room ${result.roomCode}, ${result.playerCount} players, disconnect recovery ${disconnectResult.playerCount} remaining)`);
 } catch (error) {
   if (serverOutput.trim()) console.error(serverOutput.trim());
   console.error(error instanceof Error ? error.message : String(error));
@@ -83,5 +84,91 @@ function checkRoomFlow(url) {
     ws.on('close', () => {
       if (!readySent) finish(new Error('WebSocket 在开局前关闭'));
     });
+  });
+}
+
+async function checkDisconnectFlow(url) {
+  const host = await openSmokeClient(url);
+  const guest = await openSmokeClient(url);
+  try {
+    host.send({ type: 'create-room', name: 'CI HOST', map: 'park' });
+    const joined = await host.waitFor((message) => message.type === 'joined-room');
+    guest.send({ type: 'join-room', roomCode: joined.roomCode, name: 'CI GUEST' });
+    await guest.waitFor((message) => message.type === 'joined-room');
+    await host.waitFor((message) => message.type === 'room-update' && message.room?.players?.length === 2);
+
+    host.send({ type: 'add-bot' });
+    await host.waitFor((message) => message.type === 'room-update' && message.room?.players?.length === 3);
+    host.send({ type: 'add-bot' });
+    await host.waitFor((message) => message.type === 'room-update' && message.room?.players?.length === 4);
+
+    host.send({ type: 'ready' });
+    guest.send({ type: 'ready' });
+    await Promise.all([
+      host.waitFor((message) => message.type === 'match-start'),
+      guest.waitFor((message) => message.type === 'match-start')
+    ]);
+
+    guest.ws.close();
+    const continued = await host.waitFor((message) => {
+      const players = message.room?.players || [];
+      return message.type === 'room-update' && message.room?.started === true && players.length === 3 &&
+        players.some((player) => player.isBot && player.team === 'blue');
+    });
+    return { playerCount: continued.room.players.length };
+  } finally {
+    host.ws.close();
+    guest.ws.close();
+  }
+}
+
+function openSmokeClient(url) {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(url);
+    const queue = [];
+    const waiters = [];
+    let closed = false;
+
+    const client = {
+      ws,
+      send(message) { ws.send(JSON.stringify(message)); },
+      waitFor(predicate, timeoutMs = 8_000) {
+        const queuedIndex = queue.findIndex(predicate);
+        if (queuedIndex >= 0) return Promise.resolve(queue.splice(queuedIndex, 1)[0]);
+        return new Promise((resolveWait, rejectWait) => {
+          const timer = setTimeout(() => {
+            const index = waiters.indexOf(waiter);
+            if (index >= 0) waiters.splice(index, 1);
+            rejectWait(new Error('WebSocket 消息等待超时'));
+          }, timeoutMs);
+          const waiter = (message) => {
+            clearTimeout(timer);
+            resolveWait(message);
+          };
+          waiters.push(waiter);
+          if (closed) {
+            clearTimeout(timer);
+            rejectWait(new Error('WebSocket 已关闭'));
+          }
+        });
+      }
+    };
+
+    ws.on('open', () => resolve(client));
+    ws.on('message', (raw) => {
+      const message = JSON.parse(String(raw));
+      const waiter = waiters.find((candidate) => candidate(message));
+      if (waiter) {
+        waiters.splice(waiters.indexOf(waiter), 1);
+        waiter(message);
+      } else {
+        queue.push(message);
+      }
+    });
+    ws.on('error', (error) => {
+      closed = true;
+      reject(new Error(`WebSocket 连接失败：${error.message}`));
+    });
+    ws.on('close', () => { closed = true; });
   });
 }
