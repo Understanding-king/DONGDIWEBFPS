@@ -46,6 +46,7 @@ import {
 
 const STORAGE_KEY = 'aim-trainer-local-v1';
 const configuredDuelWsUrl = String(import.meta.env.VITE_DUEL_WS_URL || '').trim();
+const isVercelDeployment = /\.vercel\.app$/i.test(window.location.hostname);
 const CROSSHAIR_COLORS = ['#f4f7fb', '#2ee6a6', '#ffbd5a', '#ff4d7d'];
 const DEFAULT_CROSSHAIR = { color: '#f4f7fb', size: 38, gap: 14, thickness: 2, dot: true };
 const DEFAULT_SETTINGS = { duration: 60, sensitivity: 3.2, crosshair: DEFAULT_CROSSHAIR, mobileControls: false, duelMap: 'park', primaryWeapon: 'ak' };
@@ -2774,8 +2775,12 @@ function openLanPanel() {
   dom.targetClock.hidden = true;
   if (opponentGroup) opponentGroup.visible = false;
   targetGroup.visible = false;
-  connectLan();
-  startRoomListPolling();
+  if (isVercelDeployment && !configuredDuelWsUrl) {
+    showRealtimeConfigNotice();
+  } else {
+    connectLan();
+    startRoomListPolling();
+  }
   syncLanUi();
   const invitedRoom = getInvitedRoomCode();
   if (invitedRoom) {
@@ -5077,6 +5082,11 @@ function disposeObject3D(object) {
 
 function connectLan() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+  if (isVercelDeployment && !configuredDuelWsUrl) {
+    showRealtimeConfigNotice();
+    pendingLanAction = null;
+    return;
+  }
 
   ws = new WebSocket(getDuelWsUrl());
   dom.lanStatus.textContent = '正在连接局域网对战服务...';
@@ -5108,6 +5118,13 @@ function connectLan() {
   });
 }
 
+function showRealtimeConfigNotice() {
+  lanConnected = false;
+  if (dom.roomConnectionLabel) dom.roomConnectionLabel.textContent = '未配置';
+  if (dom.lanStatus) dom.lanStatus.textContent = '房间大厅需要配置 VITE_DUEL_WS_URL。Vercel 前端已上线，请先部署实时服务。';
+  syncLanUi();
+}
+
 function getDuelWsUrl() {
   if (configuredDuelWsUrl) return configuredDuelWsUrl;
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -5126,6 +5143,10 @@ function stopRoomListPolling() {
 }
 
 function requestLanRoomList() {
+  if (isVercelDeployment && !configuredDuelWsUrl) {
+    showRealtimeConfigNotice();
+    return;
+  }
   if (ws?.readyState === WebSocket.OPEN) {
     sendLan({ type: 'list-rooms' });
   } else {

@@ -84,10 +84,8 @@ Vercel 部署的是静态前端，训练、BOT 对战、首页、仓库、商店
 
 ## GitHub 与上云
 
-1. 在 GitHub 新建一个专用仓库，不要复用当前这个旧的 `MyArchive` 远程地址。
+1. 当前代码已同步到 [Understanding-king/DONGDIWEBFPS](https://github.com/Understanding-king/DONGDIWEBFPS) 的 `main` 分支。
 2. GitHub Actions 会在 push 和 Pull Request 上自动运行 `pnpm run check`。
 3. 云主机执行 `pnpm install --frozen-lockfile && pnpm run build && pnpm start`。
 4. 反向代理需要同时代理 HTTP 和 WebSocket 路径 `/duel-ws`；健康检查地址是 `/healthz`。
-5. 准备好 GitHub 仓库名和云主机后，再提供仓库 URL、域名和部署日志，用于线上实时调整。
-
-当前工作区的 `origin` 仍指向旧的 `MyArchive`，不会自动推送。创建新仓库后，将其 URL 提供给我，再执行首次推送和云端联调。
+5. Vercel 负责静态前端；账号云同步需要 Supabase 环境变量，房间大厅还需要支持长连接的实时服务，并将其地址写入 `VITE_DUEL_WS_URL`。
