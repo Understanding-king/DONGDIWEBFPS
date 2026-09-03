@@ -308,11 +308,34 @@ async function hydrateCloudProfile() {
       });
       cloudProfile = created?.[0] || null;
     }
+    if (!['admin', 'owner'].includes(normalizeRole(cloudProfile?.role))) {
+      const verifiedAdmin = await fetchVerifiedAdminRole();
+      if (verifiedAdmin) cloudProfile = { ...cloudProfile, role: 'admin', status: 'active' };
+    }
     await hydrateCloudFriends();
   } catch {
-    // Keep the signed-in auth session usable when the optional profile row is unavailable.
+    // Keep the signed-in auth session usable when profile hydration is unavailable.
+    const verifiedAdmin = await fetchVerifiedAdminRole();
+    if (verifiedAdmin) {
+      cloudProfile = {
+        ...(cloudProfile || {}),
+        id: cloudSession.user.id,
+        display_name: cloudSession.user.user_metadata?.display_name || localProfile.displayName,
+        role: 'admin',
+        status: 'active'
+      };
+    }
   }
   return cloudProfile;
+}
+
+async function fetchVerifiedAdminRole() {
+  try {
+    const result = await cloudProfileRequest('/rest/v1/rpc/is_account_admin', { method: 'POST', body: {} });
+    return result === true || result?.[0] === true || result?.is_account_admin === true;
+  } catch {
+    return false;
+  }
 }
 
 async function hydrateCloudFriends() {
