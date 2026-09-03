@@ -136,18 +136,16 @@ function openSmokeClient(url) {
         const queuedIndex = queue.findIndex(predicate);
         if (queuedIndex >= 0) return Promise.resolve(queue.splice(queuedIndex, 1)[0]);
         return new Promise((resolveWait, rejectWait) => {
-          const timer = setTimeout(() => {
+          const waiter = { predicate, resolve: resolveWait, reject: rejectWait, timer: 0 };
+          waiter.timer = setTimeout(() => {
             const index = waiters.indexOf(waiter);
             if (index >= 0) waiters.splice(index, 1);
             rejectWait(new Error('WebSocket 消息等待超时'));
           }, timeoutMs);
-          const waiter = (message) => {
-            clearTimeout(timer);
-            resolveWait(message);
-          };
           waiters.push(waiter);
           if (closed) {
-            clearTimeout(timer);
+            clearTimeout(waiter.timer);
+            waiters.splice(waiters.indexOf(waiter), 1);
             rejectWait(new Error('WebSocket 已关闭'));
           }
         });
@@ -157,18 +155,29 @@ function openSmokeClient(url) {
     ws.on('open', () => resolve(client));
     ws.on('message', (raw) => {
       const message = JSON.parse(String(raw));
-      const waiter = waiters.find((candidate) => candidate(message));
-      if (waiter) {
-        waiters.splice(waiters.indexOf(waiter), 1);
-        waiter(message);
+      const waiterIndex = waiters.findIndex((candidate) => candidate.predicate(message));
+      if (waiterIndex >= 0) {
+        const waiter = waiters.splice(waiterIndex, 1)[0];
+        clearTimeout(waiter.timer);
+        waiter.resolve(message);
       } else {
         queue.push(message);
       }
     });
     ws.on('error', (error) => {
       closed = true;
+      waiters.splice(0).forEach((waiter) => {
+        clearTimeout(waiter.timer);
+        waiter.reject(new Error(`WebSocket 连接失败：${error.message}`));
+      });
       reject(new Error(`WebSocket 连接失败：${error.message}`));
     });
-    ws.on('close', () => { closed = true; });
+    ws.on('close', () => {
+      closed = true;
+      waiters.splice(0).forEach((waiter) => {
+        clearTimeout(waiter.timer);
+        waiter.reject(new Error('WebSocket 已关闭'));
+      });
+    });
   });
 }

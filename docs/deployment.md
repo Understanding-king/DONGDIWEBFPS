@@ -76,6 +76,6 @@ pnpm run check
 pnpm run check:deploy
 ```
 
-浏览器确认注册、登录、好友码、创建房间、加入房间、添加 BOT、准备和对枪；另开一个浏览器会话验证 WebSocket 加入和击杀播报。线上再检查 `/healthz` 和 `/manifest.webmanifest`。
+浏览器确认注册、登录、好友码、创建房间、加入房间、添加 BOT、准备和对枪；另开一个浏览器会话验证 WebSocket 加入和击杀播报。线上再检查 `/healthz` 和 `/manifest.webmanifest`。Vercel 的 `/healthz` 由 `api/healthz.js` 提供；Node/Docker 部署仍由生产服务器提供同一路径。
 
 GitHub 仓库创建后，把新仓库 URL 设置为 `origin` 再首次推送。当前工作区的旧 `MyArchive` 远程不要复用。

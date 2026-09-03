@@ -11,7 +11,8 @@ const requiredFiles = [
   'server/production-server.js',
   '.github/workflows/verify.yml',
   'vercel.json',
-  'render.yaml'
+  'render.yaml',
+  'api/healthz.js'
 ];
 
 for (const relativePath of requiredFiles) await access(path.join(root, relativePath));
@@ -32,8 +33,13 @@ for (const marker of ["request.url === '/healthz'", 'attachLanDuelServer(server)
 }
 
 const vercel = await readFile(path.join(root, 'vercel.json'), 'utf8');
-for (const marker of ['"buildCommand": "pnpm run build"', '"outputDirectory": "dist"', 'X-Content-Type-Options']) {
+for (const marker of ['"buildCommand": "pnpm run build"', '"outputDirectory": "dist"', '"source": "/healthz"', 'X-Content-Type-Options']) {
   if (!vercel.includes(marker)) throw new Error(`vercel.json 缺少 ${marker}`);
+}
+
+const vercelHealth = await readFile(path.join(root, 'api/healthz.js'), 'utf8');
+for (const marker of ["response.status(200)", "service: 'web-fps-vercel'"]) {
+  if (!vercelHealth.includes(marker)) throw new Error(`Vercel health function 缺少 ${marker}`);
 }
 
 const render = await readFile(path.join(root, 'render.yaml'), 'utf8');

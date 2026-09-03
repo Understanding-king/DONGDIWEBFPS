@@ -4,6 +4,9 @@
   "buildCommand": "pnpm run build",
   "outputDirectory": "dist",
   "cleanUrls": true,
+  "rewrites": [
+    { "source": "/healthz", "destination": "/api/healthz" }
+  ],
   "headers": [
     {
       "source": "/(.*)",
