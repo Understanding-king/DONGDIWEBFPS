@@ -5439,7 +5439,11 @@ function syncLanUi() {
   const self = players.find((player) => player.id === lanSelfId);
   dom.readyButton.textContent = self?.ready ? '取消准备' : '准备';
   dom.roomCodeDisplay.textContent = lanRoom?.code || '----';
-  if (dom.roomConnectionLabel) dom.roomConnectionLabel.textContent = lanConnected ? '已连接' : '离线';
+  if (dom.roomConnectionLabel) {
+    dom.roomConnectionLabel.textContent = isVercelDeployment && !configuredDuelWsUrl
+      ? '未配置'
+      : lanConnected ? '已连接' : '离线';
+  }
   if (dom.roomStationState) dom.roomStationState.textContent = lanRoom ? `房间 ${lanRoom.code}` : '未加入房间';
   if (dom.roomRosterCount) dom.roomRosterCount.textContent = `${players.length} / ${lanRoom?.maxPlayers || 10}`;
   if (!players.length) {

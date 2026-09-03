@@ -7,6 +7,7 @@ const cloudAnonKey = String(
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
   ''
 );
+const cloudConfigured = Boolean(cloudUrl && cloudAnonKey);
 
 let localProfile = readLocalProfile();
 let cloudSession = readJson(CLOUD_SESSION_KEY);
@@ -14,7 +15,7 @@ let cloudProfile = null;
 let cloudFriends = null;
 
 export function getAccountSnapshot() {
-  const cloudUser = cloudSession?.user || null;
+  const cloudUser = hasActiveCloudSession() ? cloudSession.user : null;
   const displayName = sanitizeDisplayName(
     cloudUser?.user_metadata?.display_name ||
     cloudUser?.user_metadata?.name ||
@@ -22,8 +23,8 @@ export function getAccountSnapshot() {
   );
 
   return {
-    cloudConfigured: Boolean(cloudUrl && cloudAnonKey),
-    signedIn: Boolean(cloudSession?.access_token && cloudUser?.id),
+    cloudConfigured,
+    signedIn: hasActiveCloudSession(),
     id: cloudUser?.id || localProfile.id,
     displayName,
     email: cloudUser?.email || '',
@@ -36,7 +37,7 @@ export function getAccountSnapshot() {
 }
 
 export function getFriends() {
-  if (cloudSession?.access_token && cloudSession?.user?.id) {
+  if (hasActiveCloudSession()) {
     return Array.isArray(cloudFriends) ? cloudFriends.map((friend) => ({ ...friend })) : [];
   }
   return Array.isArray(localProfile.friends)
@@ -45,10 +46,10 @@ export function getFriends() {
 }
 
 export function getFriendCode() {
-  if (cloudSession?.access_token && cloudSession?.user?.id && cloudProfile?.friend_code) {
+  if (hasActiveCloudSession() && cloudProfile?.friend_code) {
     return normalizeFriendCode(cloudProfile.friend_code);
   }
-  const raw = String(cloudSession?.user?.id || localProfile.id || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
+  const raw = String((hasActiveCloudSession() ? cloudSession.user?.id : '') || localProfile.id || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
   return (raw.slice(-12) || 'LOCALPLAYER01').padStart(12, '0');
 }
 
@@ -58,7 +59,7 @@ export async function addFriend(friendCodeOrId, displayName = '') {
   if (
     code === getFriendCode() ||
     code === normalizeFriendCode(localProfile.id) ||
-    code === normalizeFriendCode(cloudSession?.user?.id)
+    code === normalizeFriendCode(hasActiveCloudSession() ? cloudSession?.user?.id : '')
   ) {
     throw new Error('不能添加自己。');
   }
@@ -67,7 +68,7 @@ export async function addFriend(friendCodeOrId, displayName = '') {
     throw new Error('这个好友已经在列表中。');
   }
 
-  if (cloudSession?.access_token && cloudSession?.user?.id) {
+  if (hasActiveCloudSession()) {
     const payload = await cloudProfileRequest('/rest/v1/rpc/add_friend_by_code', {
       method: 'POST',
       body: { p_friend_code: code, p_nickname: sanitizeOptionalDisplayName(displayName) }
@@ -97,7 +98,7 @@ export async function addFriend(friendCodeOrId, displayName = '') {
 export async function removeFriend(friendId) {
   const id = normalizeFriendCode(friendId);
   const friend = getFriends().find((entry) => entry.id === id || entry.code === id);
-  if (cloudSession?.access_token && cloudSession?.user?.id) {
+  if (hasActiveCloudSession()) {
     if (!friend || !isUuid(friend.id)) throw new Error('好友记录无效，请刷新后重试。');
     await cloudProfileRequest('/rest/v1/rpc/remove_friend', {
       method: 'POST',
@@ -188,7 +189,7 @@ export async function signUpWithPassword({ email, password, displayName }) {
 }
 
 export async function signOutAccount() {
-  if (cloudSession?.access_token && cloudUrl && cloudAnonKey) {
+  if (hasActiveCloudSession()) {
     try {
       await fetch(`${cloudUrl}/auth/v1/logout`, {
         method: 'POST',
@@ -242,7 +243,7 @@ function isSessionExpiring() {
 }
 
 async function hydrateCloudProfile() {
-  if (!cloudSession?.access_token || !cloudSession?.user?.id || !cloudUrl || !cloudAnonKey) return null;
+  if (!hasActiveCloudSession()) return null;
   try {
     const rows = await cloudProfileRequest(`/rest/v1/profiles?select=id,display_name,friend_code,credits,xp,level,equipped_primary&id=eq.${encodeURIComponent(cloudSession.user.id)}`, { method: 'GET' });
     if (rows?.[0]) {
@@ -275,7 +276,7 @@ async function hydrateCloudProfile() {
 }
 
 async function hydrateCloudFriends() {
-  if (!cloudSession?.access_token || !cloudSession?.user?.id) return;
+  if (!hasActiveCloudSession()) return;
   try {
     const rows = await cloudProfileRequest('/rest/v1/rpc/get_my_friends', { method: 'POST', body: {} });
     cloudFriends = Array.isArray(rows) ? rows.map(normalizeCloudFriend).filter(Boolean) : [];
@@ -372,7 +373,11 @@ function sanitizeEmail(value) {
 }
 
 function assertCloudConfigured() {
-  if (!cloudUrl || !cloudAnonKey) throw new Error('云端账号服务尚未配置，当前可使用本地档案。');
+  if (!cloudConfigured) throw new Error('云端账号服务尚未配置，当前可使用本地档案。');
+}
+
+function hasActiveCloudSession() {
+  return cloudConfigured && Boolean(cloudSession?.access_token && cloudSession?.user?.id);
 }
 
 function clampInteger(value, min, max, fallback) {
