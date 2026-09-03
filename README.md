@@ -35,6 +35,8 @@ docker compose up --build -d
 
 仓库已包含 `vercel.json`，在 Vercel 中导入 `Understanding-king/DONGDIWEBFPS` 后，构建命令和输出目录会自动识别。项目设置里添加 `VITE_SUPABASE_URL`，以及 `VITE_SUPABASE_ANON_KEY` 或 `VITE_SUPABASE_PUBLISHABLE_KEY` 其中一个；如果要让 Vercel 前端连接独立的实时服务器，再添加 `VITE_DUEL_WS_URL=wss://你的实时服务器域名/duel-ws`。
 
+[一键导入 Vercel](https://vercel.com/new/clone?repository-url=https://github.com/Understanding-king/DONGDIWEBFPS) · [一键创建 Render 实时服务](https://render.com/deploy?repo=https://github.com/Understanding-king/DONGDIWEBFPS)
+
 Vercel 部署的是静态前端，训练、BOT 对战、首页、仓库、商店、个人中心和 Supabase 账号可以直接使用。Vercel Functions 不保持长连接，因此当前房间大厅的 WebSocket 服务不能放在 Vercel 上；需要把 `server/production-server.js` 部署到支持 WebSocket 的 Node/Docker 主机，并通过 `VITE_DUEL_WS_URL` 指向它。若暂时不配置该变量，房间功能会按同源 `/duel-ws` 连接，适用于 Docker/Node 全栈部署。
 
 仓库同时提供 `render.yaml`，可在 Render 一键创建实时 Node 服务；部署完成后，把它的 `wss://.../duel-ws` 地址填入 Vercel 的 `VITE_DUEL_WS_URL`。
