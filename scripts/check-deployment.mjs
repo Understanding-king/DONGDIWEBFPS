@@ -51,7 +51,7 @@ const sourceFiles = ['src/main.js', 'src/services/account-service.js', 'server/d
 const source = (await Promise.all(sourceFiles.map((file) => readFile(path.join(root, file), 'utf8')))).join('\n');
 if (/sk-[A-Za-z0-9]{20,}|service_role|github_pat_|ghp_[A-Za-z0-9]{20,}/i.test(source)) throw new Error('源码中发现疑似私密凭据');
 const clientSource = await readFile(path.join(root, 'src/main.js'), 'utf8');
-for (const marker of ['VITE_DUEL_WS_URL', 'isVercelDeployment', 'showRealtimeConfigNotice']) {
+for (const marker of ['VITE_DUEL_WS_URL', 'isVercelDeployment', 'showRealtimeConfigNotice', '等待云端配置']) {
   if (!clientSource.includes(marker)) throw new Error(`线上实时服务提示缺少 ${marker}`);
 }
 

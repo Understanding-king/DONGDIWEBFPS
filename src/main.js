@@ -2548,10 +2548,14 @@ function syncLobbyData() {
   const cloudDetail = dom.accountCloudStatus?.querySelector('small');
   if (cloudTitle) cloudTitle.textContent = accountSnapshot.signedIn
     ? '云端档案已连接'
-    : accountSnapshot.cloudConfigured ? '云端账号服务就绪' : '本地开发模式';
+    : accountSnapshot.cloudConfigured ? '云端账号服务就绪' : isVercelDeployment ? '等待云端配置' : '本地开发模式';
   if (cloudDetail) cloudDetail.textContent = accountSnapshot.signedIn
     ? accountSnapshot.email
-    : accountSnapshot.cloudConfigured ? '可以登录或注册新账号' : '配置云端环境后可登录和注册';
+    : accountSnapshot.cloudConfigured
+      ? '可以登录或注册新账号'
+      : isVercelDeployment
+        ? '配置 Supabase 环境变量后可登录和注册'
+        : '配置云端环境后可登录和注册';
 
   const signInButton = dom.cloudAccountForm?.querySelector('[data-account-action="signin"]');
   const secondaryButton = dom.cloudAccountForm?.querySelector('[data-account-action="signup"], [data-account-action="signout"]');
