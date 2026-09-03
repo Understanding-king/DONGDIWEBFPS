@@ -12,6 +12,8 @@ VITE_DUEL_WS_URL=wss://<realtime-host>/duel-ws
 
 修改该变量后需要在 Vercel 重新部署。未设置时，前端默认连接当前域名下的 `/duel-ws`，适合同一台 Node/Docker 主机同时提供页面和 WebSocket 的部署方式。
 
+仓库中的 `render.yaml` 可直接创建一个支持 WebSocket 的 Node 服务。Render 部署完成后，将服务域名改成 `wss://<render-domain>/duel-ws`，填入 Vercel 的 `VITE_DUEL_WS_URL` 并重新部署前端。
+
 ## Supabase
 
 在 Supabase SQL Editor 按顺序执行三份 `supabase/migrations/` 迁移，然后在 Auth 设置中确认允许 Email + Password 登录。前端只需要公开配置，不要使用 service-role key：

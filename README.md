@@ -37,6 +37,8 @@ docker compose up --build -d
 
 Vercel 部署的是静态前端，训练、BOT 对战、首页、仓库、商店、个人中心和 Supabase 账号可以直接使用。Vercel Functions 不保持长连接，因此当前房间大厅的 WebSocket 服务不能放在 Vercel 上；需要把 `server/production-server.js` 部署到支持 WebSocket 的 Node/Docker 主机，并通过 `VITE_DUEL_WS_URL` 指向它。若暂时不配置该变量，房间功能会按同源 `/duel-ws` 连接，适用于 Docker/Node 全栈部署。
 
+仓库同时提供 `render.yaml`，可在 Render 一键创建实时 Node 服务；部署完成后，把它的 `wss://.../duel-ws` 地址填入 Vercel 的 `VITE_DUEL_WS_URL`。
+
 需要 Node.js `20.19+` 或 `22.12+`。
 
 完整的 Supabase、Docker、Node 云平台和 Nginx WebSocket 反代步骤见 [`docs/deployment.md`](docs/deployment.md)。

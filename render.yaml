@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: dongdiwebfps-realtime
+    runtime: node
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm run build
+    startCommand: pnpm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0

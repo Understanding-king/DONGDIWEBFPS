@@ -10,7 +10,8 @@ const requiredFiles = [
   'public/manifest.webmanifest',
   'server/production-server.js',
   '.github/workflows/verify.yml',
-  'vercel.json'
+  'vercel.json',
+  'render.yaml'
 ];
 
 for (const relativePath of requiredFiles) await access(path.join(root, relativePath));
@@ -33,6 +34,11 @@ for (const marker of ["request.url === '/healthz'", 'attachLanDuelServer(server)
 const vercel = await readFile(path.join(root, 'vercel.json'), 'utf8');
 for (const marker of ['"buildCommand": "pnpm run build"', '"outputDirectory": "dist"']) {
   if (!vercel.includes(marker)) throw new Error(`vercel.json 缺少 ${marker}`);
+}
+
+const render = await readFile(path.join(root, 'render.yaml'), 'utf8');
+for (const marker of ['runtime: node', 'startCommand: pnpm start', 'healthCheckPath: /healthz']) {
+  if (!render.includes(marker)) throw new Error(`render.yaml 缺少 ${marker}`);
 }
 
 const sourceFiles = ['src/main.js', 'src/services/account-service.js', 'server/duel-server.js', 'server/production-server.js'];
