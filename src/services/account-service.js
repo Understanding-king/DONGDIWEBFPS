@@ -17,6 +17,7 @@ let cloudFriends = null;
 export function getAccountSnapshot() {
   const cloudUser = hasActiveCloudSession() ? cloudSession.user : null;
   const displayName = sanitizeDisplayName(
+    cloudProfile?.display_name ||
     cloudUser?.user_metadata?.display_name ||
     cloudUser?.user_metadata?.name ||
     localProfile.displayName
