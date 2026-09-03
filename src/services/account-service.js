@@ -2,7 +2,11 @@ const ACCOUNT_STORAGE_KEY = 'aim-trainer-account-v1';
 const CLOUD_SESSION_KEY = 'aim-trainer-cloud-session-v1';
 
 const cloudUrl = String(import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
-const cloudAnonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '');
+const cloudAnonKey = String(
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  ''
+);
 
 let localProfile = readLocalProfile();
 let cloudSession = readJson(CLOUD_SESSION_KEY);

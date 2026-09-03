@@ -4,7 +4,7 @@
 
 ## Vercel 前端
 
-仓库中的 `vercel.json` 已配置 Vite 构建。将 GitHub 仓库导入 Vercel，并设置 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`。Vercel 负责静态前端；它不能承载当前 Node WebSocket 长连接。要启用房间大厅，在另一台支持 WebSocket 的 Node/Docker 主机运行本项目的生产服务器，并在 Vercel 环境变量中设置：
+仓库中的 `vercel.json` 已配置 Vite 构建。将 GitHub 仓库导入 Vercel，并设置 `VITE_SUPABASE_URL`，以及 `VITE_SUPABASE_ANON_KEY` 或 `VITE_SUPABASE_PUBLISHABLE_KEY` 其中一个。Vercel 负责静态前端；它不能承载当前 Node WebSocket 长连接。要启用房间大厅，在另一台支持 WebSocket 的 Node/Docker 主机运行本项目的生产服务器，并在 Vercel 环境变量中设置：
 
 ```text
 VITE_DUEL_WS_URL=wss://<realtime-host>/duel-ws
@@ -19,11 +19,13 @@ VITE_DUEL_WS_URL=wss://<realtime-host>/duel-ws
 ```text
 VITE_SUPABASE_URL=https://<project>.supabase.co
 VITE_SUPABASE_ANON_KEY=<public-anon-key>
+# New Supabase dashboards may use this name instead.
+VITE_SUPABASE_PUBLISHABLE_KEY=
 ```
 
 ## Docker 云主机
 
-在项目根目录创建 `.env`，填入上面的两个变量，然后执行：
+在项目根目录创建 `.env`，填入 `VITE_SUPABASE_URL` 和两个公开 key 变量中的一个，然后执行：
 
 ```powershell
 docker compose up --build -d
