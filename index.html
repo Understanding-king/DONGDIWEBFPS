@@ -13,6 +13,41 @@
     <main class="trainer-app" id="app">
       <canvas class="scene-canvas" id="scene" aria-label="3D 练枪靶场" tabindex="0"></canvas>
 
+      <section class="access-gate" id="access-gate" aria-labelledby="access-gate-title">
+        <div class="access-gate-grid" aria-hidden="true"></div>
+        <header class="access-gate-brand"><span>WEB FPS / PRE-ALPHA</span><strong>DONGDI WEB FPS</strong><small>ACCOUNT VERIFICATION + ASSET SYNC</small></header>
+        <div class="access-gate-main">
+          <section class="access-gate-auth" aria-label="账号登录">
+            <span class="access-gate-kicker">OPERATOR ACCESS</span>
+            <h1 id="access-gate-title">登录后进入<br />对枪训练场</h1>
+            <p>账号验证与高模资源同步正在并行进行。两项完成后将自动进入大厅。</p>
+            <form id="access-gate-form" class="access-gate-form">
+              <label for="access-gate-display-name">游戏昵称 <small>注册时填写</small></label>
+              <input id="access-gate-display-name" class="text-input" maxlength="16" autocomplete="nickname" placeholder="例如：懂帝" />
+              <label for="access-gate-email">邮箱</label>
+              <input id="access-gate-email" class="text-input" type="email" autocomplete="email" required placeholder="operator@example.com" />
+              <label for="access-gate-password">密码</label>
+              <input id="access-gate-password" class="text-input" type="password" minlength="8" autocomplete="current-password" required placeholder="至少 8 位" />
+              <div class="access-gate-actions">
+                <button class="primary-action" id="access-gate-login" type="submit">登录</button>
+                <button class="secondary-action" id="access-gate-signup" type="button">注册</button>
+              </div>
+            </form>
+            <p class="access-gate-auth-status" id="access-gate-auth-status" aria-live="polite">正在验证账号状态...</p>
+            <small class="access-gate-session-note">密码登录后可在 30 分钟内直接进入；超过 30 分钟需重新登录。</small>
+          </section>
+
+          <section class="access-gate-assets" aria-label="资源加载状态">
+            <div class="access-gate-assets-head"><span>ASSET INITIALIZATION</span><strong id="access-gate-percent">0%</strong></div>
+            <h2>高模资源同步</h2>
+            <p id="access-gate-resource-status" aria-live="polite">正在准备资源队列...</p>
+            <div class="access-gate-progress" id="access-gate-progress" role="progressbar" aria-label="高模资源加载进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="access-gate-progress-bar"></span></div>
+            <div class="access-gate-asset-list" id="access-gate-assets"></div>
+            <small>高模、材质与贴图完成后才可进入大厅。</small>
+          </section>
+        </div>
+      </section>
+
       <button class="mobile-controls-switch" id="mobile-controls-toggle" type="button" aria-pressed="false">触屏按键 关</button>
 
       <section class="hud" id="hud" aria-label="训练数据" hidden>

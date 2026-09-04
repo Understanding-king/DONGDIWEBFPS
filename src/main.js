@@ -45,6 +45,7 @@ import {
   listManagedAccounts,
   removeFriend,
   restoreAccountSession,
+  expireStoredAccountSession,
   signInWithPassword,
   signOutAccount,
   signUpWithPassword,
@@ -54,6 +55,8 @@ import {
 } from './services/account-service.js';
 
 const STORAGE_KEY = 'aim-trainer-local-v1';
+const ACCOUNT_GATE_LOGIN_AT_KEY = 'dongdiwebfps-gate-login-at-v1';
+const ACCOUNT_GATE_REAUTH_MS = 30 * 60 * 1000;
 const configuredDuelWsUrl = String(import.meta.env.VITE_DUEL_WS_URL || '').trim();
 const isVercelDeployment = /\.vercel\.app$/i.test(window.location.hostname);
 const CROSSHAIR_COLORS = ['#f4f7fb', '#2ee6a6', '#ffbd5a', '#ff4d7d'];
@@ -451,6 +454,19 @@ const dom = {
   homeAkLoading: document.getElementById('home-ak-loading'),
   homeAkLoadingBar: document.getElementById('home-ak-loading-bar'),
   homeAkLoadingStatus: document.getElementById('home-ak-loading-status'),
+  accessGate: document.getElementById('access-gate'),
+  accessGateForm: document.getElementById('access-gate-form'),
+  accessGateDisplayName: document.getElementById('access-gate-display-name'),
+  accessGateEmail: document.getElementById('access-gate-email'),
+  accessGatePassword: document.getElementById('access-gate-password'),
+  accessGateAuthStatus: document.getElementById('access-gate-auth-status'),
+  accessGateResourceStatus: document.getElementById('access-gate-resource-status'),
+  accessGateProgress: document.getElementById('access-gate-progress'),
+  accessGateProgressBar: document.getElementById('access-gate-progress-bar'),
+  accessGatePercent: document.getElementById('access-gate-percent'),
+  accessGateAssetList: document.getElementById('access-gate-assets'),
+  accessGateLoginButton: document.getElementById('access-gate-login'),
+  accessGateSignupButton: document.getElementById('access-gate-signup'),
   missionHits: document.getElementById('mission-hits'),
   rangeLeaderboardList: document.getElementById('range-leaderboard-list'),
   rangeLeaderboardStatus: document.getElementById('range-leaderboard-status'),
@@ -593,6 +609,13 @@ let detailedAkRetryTimer = null;
 let detailedAkLoadPromise = null;
 let detailedAkLastError = null;
 let detailedAkCachePersistenceRequested = false;
+const accessGate = {
+  active: true,
+  accountReady: false,
+  resourcesReady: false,
+  released: false,
+  sessionExpired: false
+};
 const detailedAkProgress = {
   loadedBytes: 0,
   totalBytes: 0,
@@ -827,7 +850,9 @@ function init() {
   initScene();
   initUi();
   detailedAkProgressListeners.add(updateHomeAkLoadingUi);
+  detailedAkProgressListeners.add(updateAccessGateUi);
   updateHomeAkLoadingUi(getDetailedAkProgressSnapshot());
+  updateAccessGateUi(getDetailedAkProgressSnapshot());
   ensureDetailedAkModel();
   renderMenuStats();
   setOverlay('mode');
@@ -835,6 +860,7 @@ function init() {
     switchLobbyView('play');
     openLanPanel();
   }
+  startAccessGate();
   resize();
   window.addEventListener('resize', resize);
   window.addEventListener('blur', clearInputState);
@@ -3012,6 +3038,11 @@ function initUi() {
   dom.duelMenuButton.addEventListener('click', showMainMenu);
   dom.matchLoadingEnter?.addEventListener('click', continueMatchLoading);
   dom.mobileControlsToggle.addEventListener('click', toggleMobileControls);
+  dom.accessGateForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    handleAccessGateAccountAction('signin');
+  });
+  dom.accessGateSignupButton?.addEventListener('click', () => handleAccessGateAccountAction('signup'));
   dom.cheatPanel?.addEventListener('change', (event) => {
     const input = event.target.closest('[data-cheat]');
     if (!input || !canUseCheats()) return;
@@ -3166,11 +3197,6 @@ function initLobbyUi() {
   switchLobbyView('home');
   syncLobbyData();
   refreshRangeLeaderboard();
-  restoreAccountSession().then((snapshot) => {
-    accountSnapshot = snapshot;
-    syncLobbyData();
-    refreshRangeLeaderboard();
-  }).catch(() => {});
 }
 
 function switchLobbyView(viewName = 'home') {
@@ -3213,6 +3239,7 @@ async function handleCloudAccountAction(action) {
   try {
     if (action === 'signout') {
       accountSnapshot = await signOutAccount();
+      localStorage.removeItem(ACCOUNT_GATE_LOGIN_AT_KEY);
       dom.accountMessage.textContent = '已退出云端账号。';
     } else {
       const credentials = {
@@ -3225,6 +3252,7 @@ async function handleCloudAccountAction(action) {
       accountSnapshot = action === 'signup'
         ? await signUpWithPassword(credentials)
         : await signInWithPassword(credentials);
+      if (accountSnapshot.signedIn) recordAccountGateLogin();
       dom.accountMessage.textContent = accountSnapshot.confirmationRequired
         ? '注册成功，请先在邮箱中完成确认。'
         : '云端账号已连接。';
@@ -3233,6 +3261,188 @@ async function handleCloudAccountAction(action) {
     dom.accountMessage.textContent = error?.message || '账号操作失败。';
   }
   syncLobbyData();
+}
+
+function getAccountGateLoginAt() {
+  try {
+    const timestamp = Number(localStorage.getItem(ACCOUNT_GATE_LOGIN_AT_KEY));
+    return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function recordAccountGateLogin(now = Date.now()) {
+  try {
+    localStorage.setItem(ACCOUNT_GATE_LOGIN_AT_KEY, String(now));
+  } catch {
+    // Session verification can continue even when browser storage is restricted.
+  }
+}
+
+function isAccountGateLoginFresh(now = Date.now()) {
+  const loginAt = getAccountGateLoginAt();
+  return loginAt > 0 && now >= loginAt && now - loginAt < ACCOUNT_GATE_REAUTH_MS;
+}
+
+async function startAccessGate() {
+  if (!dom.accessGate) return;
+  accessGate.active = true;
+  accessGate.released = false;
+  accessGate.accountReady = false;
+  accessGate.resourcesReady = detailedAkLoadState === 'ready';
+  accessGate.sessionExpired = false;
+  document.body.classList.add('is-access-gated');
+  dom.accessGate.hidden = false;
+  dom.accessGate.classList.remove('is-releasing');
+  updateAccessGateUi(getDetailedAkProgressSnapshot());
+
+  const initialSnapshot = getAccountSnapshot();
+  if (!initialSnapshot.cloudConfigured) {
+    setAccessGateAuthStatus('账号服务尚未配置，暂时无法进入大厅。', 'error');
+    updateAccessGateUi(getDetailedAkProgressSnapshot());
+    return;
+  }
+
+  if (!isAccountGateLoginFresh()) {
+    accessGate.sessionExpired = Boolean(initialSnapshot.signedIn || getAccountGateLoginAt());
+    accountSnapshot = expireStoredAccountSession();
+    syncLobbyData();
+    setAccessGateAuthStatus(
+      accessGate.sessionExpired ? '登录已超过 30 分钟，请重新输入账号密码。' : '请输入云端账号后继续。',
+      accessGate.sessionExpired ? 'warning' : 'idle'
+    );
+    updateAccessGateUi(getDetailedAkProgressSnapshot());
+    return;
+  }
+
+  setAccessGateAuthStatus('正在验证已登录账号...', 'loading');
+  try {
+    accountSnapshot = await restoreAccountSession();
+    if (accountSnapshot.signedIn) {
+      accessGate.accountReady = true;
+      setAccessGateAuthStatus(`账号验证通过：${accountSnapshot.displayName}`, 'ready');
+      syncLobbyData();
+      refreshRangeLeaderboard();
+    } else {
+      setAccessGateAuthStatus('登录状态无效，请重新输入账号密码。', 'warning');
+    }
+  } catch (error) {
+    setAccessGateAuthStatus(error?.message || '账号验证失败，请重新登录。', 'error');
+  }
+  updateAccessGateUi(getDetailedAkProgressSnapshot());
+}
+
+async function handleAccessGateAccountAction(action) {
+  if (!dom.accessGateAuthStatus) return;
+  const snapshot = getAccountSnapshot();
+  if (!snapshot.cloudConfigured) {
+    setAccessGateAuthStatus('账号服务尚未配置，暂时无法进入大厅。', 'error');
+    return;
+  }
+
+  const credentials = {
+    email: dom.accessGateEmail?.value || '',
+    password: dom.accessGatePassword?.value || '',
+    displayName: dom.accessGateDisplayName?.value || ''
+  };
+  if (credentials.password.length < 8) {
+    setAccessGateAuthStatus('密码至少需要 8 个字符。', 'error');
+    return;
+  }
+  if (action === 'signup' && !credentials.displayName.trim()) {
+    setAccessGateAuthStatus('注册前请填写游戏昵称。', 'error');
+    return;
+  }
+
+  setAccessGateAuthBusy(true);
+  setAccessGateAuthStatus(action === 'signup' ? '正在创建账号...' : '正在登录账号...', 'loading');
+  try {
+    accountSnapshot = action === 'signup'
+      ? await signUpWithPassword(credentials)
+      : await signInWithPassword(credentials);
+    if (accountSnapshot.confirmationRequired) {
+      accessGate.accountReady = false;
+      setAccessGateAuthStatus('注册成功，请先在邮箱中完成确认后再登录。', 'warning');
+    } else if (accountSnapshot.signedIn) {
+      recordAccountGateLogin();
+      accessGate.accountReady = true;
+      accessGate.sessionExpired = false;
+      if (dom.accessGatePassword) dom.accessGatePassword.value = '';
+      setAccessGateAuthStatus(`账号验证通过：${accountSnapshot.displayName}`, 'ready');
+      syncLobbyData();
+      refreshRangeLeaderboard();
+    } else {
+      setAccessGateAuthStatus('账号尚未登录，请检查邮箱确认状态后重试。', 'warning');
+    }
+  } catch (error) {
+    accessGate.accountReady = false;
+    setAccessGateAuthStatus(error?.message || '账号登录失败，请稍后重试。', 'error');
+  } finally {
+    setAccessGateAuthBusy(false);
+    updateAccessGateUi(getDetailedAkProgressSnapshot());
+  }
+}
+
+function setAccessGateAuthStatus(message, state = 'idle') {
+  if (!dom.accessGateAuthStatus) return;
+  dom.accessGateAuthStatus.textContent = message;
+  dom.accessGateAuthStatus.dataset.state = state;
+}
+
+function setAccessGateAuthBusy(busy) {
+  if (dom.accessGateLoginButton) dom.accessGateLoginButton.disabled = busy;
+  if (dom.accessGateSignupButton) dom.accessGateSignupButton.disabled = busy;
+}
+
+function updateAccessGateUi(snapshot = getDetailedAkProgressSnapshot()) {
+  if (!dom.accessGate) return;
+  const progress = getDetailedAkTransferProgress(snapshot);
+  accessGate.resourcesReady = snapshot.state === 'ready';
+  if (dom.accessGateProgressBar) dom.accessGateProgressBar.style.width = `${progress}%`;
+  if (dom.accessGateProgress) {
+    dom.accessGateProgress.setAttribute('aria-valuenow', String(progress));
+    dom.accessGateProgress.classList.toggle('is-processing', snapshot.state === 'loading' && progress >= 100);
+  }
+  if (dom.accessGatePercent) dom.accessGatePercent.textContent = `${progress}%`;
+  if (dom.accessGateResourceStatus) {
+    dom.accessGateResourceStatus.textContent = snapshot.state === 'fallback'
+      ? '资源同步尚未完成，正在后台重新连接下载。'
+      : getDetailedAkProgressLabel(snapshot, progress);
+  }
+  if (dom.accessGateAssetList) {
+    const assetStates = new Map(snapshot.assets.map((asset) => [asset.filename, asset]));
+    dom.accessGateAssetList.replaceChildren();
+    DETAILED_AK_ASSETS.forEach((asset) => {
+      const state = assetStates.get(asset.filename);
+      const item = document.createElement('div');
+      const label = document.createElement('span');
+      const name = document.createElement('strong');
+      label.textContent = state?.status === 'ready'
+        ? state.source === 'cache' ? 'LOCAL' : 'READY'
+        : state?.status === 'error' ? 'RETRY' : 'SYNC';
+      name.textContent = asset.label;
+      item.className = 'access-gate-asset';
+      item.classList.toggle('is-ready', state?.status === 'ready');
+      item.classList.toggle('is-error', state?.status === 'error');
+      item.append(label, name);
+      dom.accessGateAssetList.append(item);
+    });
+  }
+  releaseAccessGateWhenReady();
+}
+
+function releaseAccessGateWhenReady() {
+  if (!accessGate.active || accessGate.released || !accessGate.accountReady || !accessGate.resourcesReady) return;
+  accessGate.released = true;
+  setAccessGateAuthStatus('验证完成，正在进入大厅。', 'ready');
+  dom.accessGate?.classList.add('is-releasing');
+  window.setTimeout(() => {
+    if (!accessGate.released) return;
+    accessGate.active = false;
+    if (dom.accessGate) dom.accessGate.hidden = true;
+    document.body.classList.remove('is-access-gated');
+  }, 320);
 }
 
 function syncLobbyData() {

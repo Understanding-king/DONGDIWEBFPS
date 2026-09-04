@@ -61,6 +61,162 @@ button {
   touch-action: none;
 }
 
+.access-gate {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  overflow: auto;
+  isolation: isolate;
+  background: rgba(5, 9, 13, .93);
+  opacity: 1;
+  transition: opacity .28s ease, visibility .28s ease;
+}
+
+.access-gate[hidden] { display: none; }
+.access-gate.is-releasing { opacity: 0; visibility: hidden; pointer-events: none; }
+.access-gate::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background:
+    linear-gradient(90deg, rgba(46, 230, 166, .08) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(255, 189, 90, .055) 1px, transparent 1px),
+    linear-gradient(115deg, rgba(8, 20, 25, .96), rgba(7, 10, 14, .96) 56%, rgba(23, 12, 20, .88));
+  background-size: 54px 54px, 54px 54px, auto;
+}
+
+.access-gate-grid {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: .82;
+  background:
+    linear-gradient(90deg, transparent 0 49.8%, rgba(46, 230, 166, .16) 49.9% 50%, transparent 50.1%),
+    linear-gradient(0deg, transparent 0 69.8%, rgba(255, 189, 90, .14) 69.9% 70%, transparent 70.1%);
+  mask-image: linear-gradient(90deg, #000 0 75%, transparent 100%);
+  pointer-events: none;
+}
+
+.access-gate-brand {
+  position: absolute;
+  top: 24px;
+  left: 28px;
+  z-index: 1;
+  display: grid;
+  gap: 3px;
+}
+
+.access-gate-brand span,
+.access-gate-brand small {
+  color: #9eacb9;
+  font: 750 10px var(--mono);
+}
+
+.access-gate-brand strong {
+  color: #f2f8fb;
+  font: 900 22px/1 var(--mono);
+}
+
+.access-gate-main {
+  width: min(1040px, calc(100vw - 56px));
+  min-height: 100%;
+  display: grid;
+  grid-template-columns: minmax(300px, .95fr) minmax(340px, 1.05fr);
+  align-items: center;
+  gap: clamp(42px, 8vw, 112px);
+  margin: 0 auto;
+  padding: 108px 0 54px;
+}
+
+.access-gate-auth { max-width: 430px; }
+.access-gate-kicker,
+.access-gate-assets-head > span { color: var(--cyan); font: 850 10px var(--mono); }
+.access-gate-auth h1 {
+  margin: 12px 0 12px;
+  color: #f7fbff;
+  font-size: clamp(34px, 4vw, 56px);
+  line-height: 1.03;
+}
+
+.access-gate-auth > p {
+  margin: 0;
+  color: #aab7c3;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.access-gate-form { display: grid; gap: 8px; margin-top: 25px; }
+.access-gate-form label { color: #a9b6c2; font: 750 11px var(--mono); }
+.access-gate-form label small { color: #778695; font: inherit; }
+.access-gate-form .text-input { min-height: 44px; }
+.access-gate-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.access-gate-actions button { min-width: 0; }
+.access-gate-auth-status {
+  min-height: 38px;
+  margin-top: 14px !important;
+  padding: 9px 11px;
+  border-left: 3px solid rgba(155, 167, 186, .56);
+  background: rgba(244, 247, 251, .045);
+  color: #c6d0d9 !important;
+  font: 700 11px/1.45 var(--mono);
+}
+.access-gate-auth-status[data-state="ready"] { border-color: var(--cyan); color: #c2fae5 !important; }
+.access-gate-auth-status[data-state="loading"] { border-color: var(--amber); color: #ffe6a7 !important; }
+.access-gate-auth-status[data-state="warning"] { border-color: var(--amber); color: #ffe6a7 !important; }
+.access-gate-auth-status[data-state="error"] { border-color: var(--pink); color: #ffc7d5 !important; }
+.access-gate-session-note { display: block; margin-top: 10px; color: #748391; font: 650 10px/1.5 var(--mono); }
+
+.access-gate-assets {
+  position: relative;
+  padding: 22px;
+  border: 1px solid rgba(232, 237, 247, .15);
+  background: linear-gradient(145deg, rgba(16, 24, 31, .9), rgba(9, 13, 18, .87));
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .33), inset 0 0 0 1px rgba(46, 230, 166, .045);
+}
+
+.access-gate-assets::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 24px;
+  width: 86px;
+  height: 2px;
+  background: var(--cyan);
+  box-shadow: 0 0 18px rgba(46, 230, 166, .72);
+}
+
+.access-gate-assets-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.access-gate-assets-head strong { color: var(--amber); font: 900 20px var(--mono); }
+.access-gate-assets h2 { margin: 18px 0 6px; color: #f4f7fb; font-size: 25px; }
+.access-gate-assets > p { min-height: 42px; margin: 0; color: #a6b3bf; font: 700 12px/1.55 var(--mono); }
+.access-gate-progress { height: 8px; margin: 18px 0 14px; overflow: hidden; background: rgba(244, 247, 251, .11); }
+.access-gate-progress > span { display: block; width: 0; height: 100%; background: linear-gradient(90deg, var(--cyan), #9effda 65%, var(--amber)); box-shadow: 0 0 16px rgba(46, 230, 166, .52); transition: width .16s linear; }
+.access-gate-progress.is-processing > span { animation: access-gate-processing 1.1s linear infinite; }
+.access-gate-asset-list { display: grid; gap: 5px; }
+.access-gate-asset { display: flex; align-items: center; gap: 10px; min-height: 31px; padding: 0 10px; border: 1px solid rgba(232, 237, 247, .08); background: rgba(244, 247, 251, .025); }
+.access-gate-asset > span { min-width: 38px; color: #94a2af; font: 850 9px var(--mono); }
+.access-gate-asset > strong { color: #cad3da; font: 700 11px var(--mono); }
+.access-gate-asset.is-ready { border-color: rgba(46, 230, 166, .2); background: rgba(46, 230, 166, .055); }
+.access-gate-asset.is-ready > span { color: var(--cyan); }
+.access-gate-asset.is-error { border-color: rgba(255, 77, 125, .28); }
+.access-gate-asset.is-error > span { color: var(--pink); }
+.access-gate-assets > small { display: block; margin-top: 13px; color: #798897; font: 650 10px/1.5 var(--mono); }
+
+@keyframes access-gate-processing {
+  0% { transform: translateX(-42%); }
+  100% { transform: translateX(42%); }
+}
+
+@media (max-width: 760px) {
+  .access-gate-brand { top: 18px; left: 18px; }
+  .access-gate-brand strong { font-size: 18px; }
+  .access-gate-main { width: min(100% - 32px, 520px); grid-template-columns: 1fr; gap: 28px; padding: 90px 0 32px; }
+  .access-gate-auth { max-width: none; }
+  .access-gate-auth h1 { font-size: 38px; }
+  .access-gate-assets { padding: 17px; }
+}
+
 .mobile-controls-switch {
   position: absolute;
   right: 22px;

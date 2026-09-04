@@ -277,6 +277,16 @@ export async function signOutAccount() {
   return getAccountSnapshot();
 }
 
+// Used by the entry gate when its local re-authentication window has elapsed.
+// The remote Supabase token may remain valid, but this browser must authenticate again.
+export function expireStoredAccountSession() {
+  cloudSession = null;
+  cloudProfile = null;
+  cloudFriends = null;
+  localStorage.removeItem(CLOUD_SESSION_KEY);
+  return getAccountSnapshot();
+}
+
 async function cloudRequest(path, { method, body }) {
   const response = await fetch(`${cloudUrl}${path}`, {
     method,
