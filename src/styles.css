@@ -426,6 +426,36 @@ body.kill-impact .scene-canvas { animation: kill-camera-shake .28s cubic-bezier(
 .spawn-shield[hidden] { display: none; }
 .spawn-shield .lucide { width: 15px; height: 15px; }
 
+.duel-loadout-window {
+  position: absolute;
+  left: 50%;
+  bottom: 132px;
+  z-index: 10;
+  width: min(438px, calc(100vw - 28px));
+  padding: 9px 10px 10px;
+  border: 1px solid rgba(46, 230, 166, .5);
+  border-radius: 6px;
+  background: rgba(8, 13, 18, .9);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, .3), 0 0 24px rgba(46, 230, 166, .12);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.duel-loadout-window[hidden] { display: none; }
+.duel-loadout-head { display: flex; align-items: center; gap: 8px; color: #dce8e8; font: 850 10px var(--mono); letter-spacing: .08em; }
+.duel-loadout-head .lucide { width: 14px; height: 14px; color: var(--cyan); }
+.duel-loadout-head > strong { margin-left: auto; color: var(--amber); font: 900 12px var(--mono); }
+.duel-loadout-head > strong b { font-size: 16px; }
+.duel-loadout-packs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin-top: 8px; }
+.duel-loadout-packs > span { display: grid; grid-template-columns: auto 1fr; column-gap: 7px; align-items: center; min-height: 44px; padding: 7px 8px; border: 1px solid rgba(232, 237, 247, .13); background: rgba(244, 247, 251, .035); color: #9caab8; transition: border-color .14s ease, background .14s ease, color .14s ease; }
+.duel-loadout-packs b { grid-row: span 2; color: rgba(232, 237, 247, .42); font: 850 10px var(--mono); }
+.duel-loadout-packs strong { color: inherit; font: 850 12px var(--mono); }
+.duel-loadout-packs small { color: inherit; font: 700 9px var(--mono); }
+.duel-loadout-packs > span.active { color: #06130f; border-color: transparent; background: var(--cyan); box-shadow: 0 0 15px rgba(46, 230, 166, .32); }
+.duel-loadout-packs > span.active b { color: rgba(6, 19, 15, .58); }
+.duel-loadout-window p { margin: 8px 0 0; color: #9caab8; text-align: center; font: 700 10px var(--mono); }
+.duel-loadout-window kbd { padding: 1px 4px; border: 1px solid rgba(232, 237, 247, .3); color: #edf7f8; background: rgba(255, 255, 255, .07); font: inherit; }
+
 @keyframes kill-feed-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes kill-feed-bolt {
   0% { opacity: 0; transform: scaleX(.2); }
@@ -449,6 +479,7 @@ body.kill-impact .scene-canvas { animation: kill-camera-shake .28s cubic-bezier(
 @media (max-width: 700px) {
   .kill-feed { top: 78px; left: 50%; width: calc(100vw - 28px); }
   .spawn-shield { bottom: 112px; }
+  .duel-loadout-window { bottom: 142px; }
 }
 
 .hit-marker {

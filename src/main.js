@@ -165,6 +165,7 @@ const NAMEPLATE_CANVAS_WIDTH = 512;
 const NAMEPLATE_CANVAS_HEIGHT = 128;
 const DUEL_RESPAWN_DELAY = 1800;
 const SPAWN_PROTECTION_MS = 1000;
+const DUEL_LOADOUT_SWITCH_WINDOW_MS = 5000;
 const ICECREAM_INVULN_MS = 5000;
 const ICECREAM_COOLDOWN_MS = 18000;
 const ICECREAM_ANIMATION_MS = 980;
@@ -467,9 +468,12 @@ const dom = {
   cheatPanel: document.getElementById('cheat-panel'),
   cheatStatus: document.getElementById('cheat-status'),
   spawnShield: document.getElementById('spawn-shield'),
+  duelLoadoutWindow: document.getElementById('duel-loadout-window'),
+  duelLoadoutCountdown: document.getElementById('duel-loadout-countdown'),
   weaponIndicator: document.getElementById('weapon-indicator'),
   weaponSlotLabel: document.getElementById('weapon-slot-label'),
   weaponNameLabel: document.getElementById('weapon-name-label'),
+  weaponActionHint: document.getElementById('weapon-action-hint'),
   scopeOverlay: document.getElementById('scope-overlay'),
   rangeModeButton: document.getElementById('range-mode-button'),
   lanModeButton: document.getElementById('lan-mode-button'),
@@ -710,6 +714,8 @@ const duel = {
   enemyAlive: true,
   respawningUntil: 0,
   protectedUntil: 0,
+  loadoutUntil: 0,
+  loadoutLocked: true,
   icecreamUntil: 0,
   icecreamCooldownUntil: 0,
   icecreamPending: false,
@@ -4143,6 +4149,7 @@ function handleWeaponWheel(event) {
   syncModifierKeys(event);
   if (Math.abs(event.deltaY) < 1 && Math.abs(event.deltaX) < 1) return;
   event.preventDefault();
+  if (isDuelMode()) return;
   const now = performance.now();
   if (now - lastWheelSwitchAt < 220) return;
   lastWheelSwitchAt = now;
@@ -4248,6 +4255,11 @@ function handleWeaponAction(action) {
 
   if (action === 'icecream') {
     return useIcecream(lastWeaponActionAt);
+  }
+  if (isDuelMode()) {
+    if (action === 'cycle-primary') return cycleDuelLoadout(lastWeaponActionAt);
+    // Duel weapons are selected only through the respawn loadout window.
+    return ['weapon-ak', 'weapon-sniper', 'weapon-shotgun', 'knife', 'primary'].includes(action);
   }
   if (action === 'cycle-primary') {
     cyclePrimaryWeapon();
@@ -4377,6 +4389,59 @@ function cyclePrimaryWeapon() {
   selectPrimaryWeapon(PRIMARY_WEAPON_ORDER[(currentIndex + 1) % PRIMARY_WEAPON_ORDER.length] || 'ak');
 }
 
+function beginDuelLoadoutWindow(now = performance.now()) {
+  if (!isDuelMode() || !duel.active) return;
+  duel.loadoutUntil = now + DUEL_LOADOUT_SWITCH_WINDOW_MS;
+  duel.loadoutLocked = false;
+  equippedSlot = 'primary';
+  aimingDownSights = false;
+  triggerHeld = false;
+  syncWeaponModel();
+  updateDuelLoadoutUi(now);
+}
+
+function isDuelLoadoutWindowActive(now = performance.now()) {
+  return isDuelMode() && duel.active && state === 'running' && duel.health > 0 &&
+    !duel.loadoutLocked && now < duel.loadoutUntil;
+}
+
+function cycleDuelLoadout(now = performance.now()) {
+  if (!isDuelLoadoutWindowActive(now)) {
+    pushDuelFeed('背包已锁定，等待下次复活。');
+    return true;
+  }
+  const currentIndex = PRIMARY_WEAPON_ORDER.indexOf(selectedPrimaryWeapon);
+  const nextWeapon = PRIMARY_WEAPON_ORDER[(currentIndex + 1) % PRIMARY_WEAPON_ORDER.length] || 'ak';
+  selectPrimaryWeapon(nextWeapon);
+  const remaining = Math.max(0, Math.ceil((duel.loadoutUntil - now) / 1000));
+  pushDuelFeed(`已切换至 ${getPrimaryWeapon().label} 背包，还可调整 ${remaining}s。`);
+  updateDuelLoadoutUi(now);
+  return true;
+}
+
+function lockDuelLoadout(now = performance.now(), reason = '') {
+  if (!isDuelMode() || !duel.active || duel.loadoutLocked) return;
+  duel.loadoutLocked = true;
+  if (reason === 'fired') pushDuelFeed('已开火，本条命背包已锁定。');
+  updateDuelLoadoutUi(now);
+}
+
+function updateDuelLoadoutUi(now = performance.now()) {
+  if (!dom.duelLoadoutWindow) return;
+  if (isDuelMode() && duel.active && duel.health > 0 && !duel.loadoutLocked && duel.loadoutUntil && now >= duel.loadoutUntil) {
+    lockDuelLoadout(now);
+  }
+  const active = isDuelLoadoutWindowActive(now);
+  dom.duelLoadoutWindow.hidden = !active;
+  if (!active) return;
+
+  const remaining = Math.max(0, Math.ceil((duel.loadoutUntil - now) / 1000));
+  if (dom.duelLoadoutCountdown) dom.duelLoadoutCountdown.textContent = String(remaining);
+  dom.duelLoadoutWindow.querySelectorAll('[data-duel-loadout]').forEach((item) => {
+    item.classList.toggle('active', item.dataset.duelLoadout === selectedPrimaryWeapon);
+  });
+}
+
 function equipKnife() {
   const changed = equippedSlot !== 'knife';
   equippedSlot = 'knife';
@@ -4452,6 +4517,16 @@ function updateWeaponUi(now = performance.now()) {
   dom.scopeOverlay.hidden = !sniperScoped;
   dom.weaponSlotLabel.textContent = weapon.slotLabel;
   dom.weaponNameLabel.textContent = weapon.label;
+  if (dom.weaponActionHint) {
+    if (isDuelLoadoutWindowActive(now)) {
+      const remaining = Math.max(0, Math.ceil((duel.loadoutUntil - now) / 1000));
+      dom.weaponActionHint.textContent = `B 切换背包 · ${remaining}s 后锁定 · 开火立即锁定`;
+    } else if (isDuelMode() && duel.active) {
+      dom.weaponActionHint.textContent = '本条命背包已锁定 · 下次复活后可调整';
+    } else {
+      dom.weaponActionHint.textContent = 'Space 跳 · F 雪糕 · B/滚轮/1/2/3 武器 · Q 刀 · E 主武器';
+    }
+  }
   updateIcecreamUi(now);
   syncMobileControls();
 }
@@ -4592,6 +4667,7 @@ function fireWeapon(now) {
 
 function fireDuelWeapon(now) {
   if (!duel.active || duel.health <= 0 || now < nextShotAt) return;
+  lockDuelLoadout(now, 'fired');
   const weapon = getPrimaryWeapon();
   if (weapon.id === 'shotgun') {
     fireShotgunDuel(now);
@@ -4667,6 +4743,7 @@ function fireShotgunRange(now) {
 
 function fireShotgunDuel(now) {
   const weapon = getPrimaryWeapon();
+  lockDuelLoadout(now, 'fired');
   nextShotAt = now + weapon.fireInterval;
   sprayIndex = 1;
   spreadKick = Math.min(1, spreadKick + 0.42);
@@ -4973,6 +5050,7 @@ function render() {
     : 0;
   spreadKick = THREE.MathUtils.damp(spreadKick, Math.max(firingSpreadKick, airborneHipKick), 14, delta);
   updateAimDownSights(delta);
+  updateDuelLoadoutUi(now);
   updateWeaponUi(now);
   updateSpawnProtectionUi(now);
 
@@ -5197,6 +5275,8 @@ function setupDuel(type, roomCode = '') {
   duel.enemyAlive = true;
   duel.respawningUntil = 0;
   duel.protectedUntil = performance.now() + SPAWN_PROTECTION_MS;
+  duel.loadoutUntil = 0;
+  duel.loadoutLocked = true;
   duel.icecreamUntil = 0;
   duel.icecreamCooldownUntil = 0;
   duel.icecreamPending = false;
@@ -5222,6 +5302,7 @@ function setupDuel(type, roomCode = '') {
   dom.killFeed.hidden = false;
   dom.targetClock.hidden = true;
   state = 'running';
+  beginDuelLoadoutWindow();
   updateDuelHud();
   syncCheatUi();
 }
@@ -5544,7 +5625,8 @@ function respawnLocalPlayer() {
     bot.targetVelocity.set(0, 0, 0);
     bot.lastTargetPosition = camera.position.clone();
   }
-  pushDuelFeed('你已复活，1 秒保护。');
+  beginDuelLoadoutWindow();
+  pushDuelFeed('你已复活，5 秒内可按 B 切换背包。');
   updateDuelHud();
 }
 
@@ -5608,6 +5690,7 @@ function resumeDuelRun() {
   if (appMode === 'bot' && pausedAt > 0) {
     const pausedDuration = Math.max(0, now - pausedAt);
     if (duel.protectedUntil > pausedAt) duel.protectedUntil += pausedDuration;
+    if (duel.loadoutUntil > pausedAt) duel.loadoutUntil += pausedDuration;
     if (duel.icecreamUntil > pausedAt) duel.icecreamUntil += pausedDuration;
     if (duel.icecreamCooldownUntil > pausedAt) duel.icecreamCooldownUntil += pausedDuration;
     if (duel.icecreamPendingUntil > pausedAt) duel.icecreamPendingUntil += pausedDuration;
@@ -5629,6 +5712,8 @@ function resumeDuelRun() {
 function finishDuel(won, mainText, detailText) {
   if (!isDuelMode()) return;
   duel.active = false;
+  duel.loadoutUntil = 0;
+  duel.loadoutLocked = true;
   document.body.classList.remove('is-spawn-protected');
   state = 'ended';
   clearInputState();
@@ -5658,6 +5743,9 @@ function cleanupDuel(leaveRoom = true) {
   if (document.pointerLockElement === dom.canvas) document.exitPointerLock();
   clearInputState();
   duel.active = false;
+  duel.loadoutUntil = 0;
+  duel.loadoutLocked = true;
+  if (dom.duelLoadoutWindow) dom.duelLoadoutWindow.hidden = true;
   document.body.classList.remove('is-spawn-protected');
   if (dom.spawnShield) dom.spawnShield.hidden = true;
   lanCanEnter = false;
@@ -6194,7 +6282,8 @@ function handleLanMessage(payload) {
       placeLocalPlayer({ position: vectorFromPayload(message.position), yaw: message.yaw || 0 });
       duel.health = message.health || DUEL_PLAYER_HEALTH;
       duel.protectedUntil = performance.now() + Number(message.protectionMs || SPAWN_PROTECTION_MS);
-      pushDuelFeed('你已复活，1 秒保护。');
+      beginDuelLoadoutWindow();
+      pushDuelFeed('你已复活，5 秒内可按 B 切换背包。');
       updateDuelHud();
     }
     return;

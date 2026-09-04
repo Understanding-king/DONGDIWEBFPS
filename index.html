@@ -82,10 +82,20 @@
       </div>
       <div class="spawn-shield" id="spawn-shield" hidden aria-live="polite"><i data-lucide="shield-check"></i><span>复活保护</span></div>
 
+      <section class="duel-loadout-window" id="duel-loadout-window" hidden aria-live="polite">
+        <div class="duel-loadout-head"><i data-lucide="boxes"></i><span>复活配装</span><strong><b id="duel-loadout-countdown">5</b>S</strong></div>
+        <div class="duel-loadout-packs" aria-label="可切换背包">
+          <span data-duel-loadout="ak"><b>01</b><strong>AK-47</strong><small>突击</small></span>
+          <span data-duel-loadout="sniper"><b>02</b><strong>AWP</strong><small>狙击</small></span>
+          <span data-duel-loadout="shotgun"><b>03</b><strong>M870</strong><small>破门</small></span>
+        </div>
+        <p><kbd>B</kbd> 切换背包 · 开火后锁定</p>
+      </section>
+
       <div class="weapon-indicator" id="weapon-indicator" hidden>
         <span id="weapon-slot-label">主武器</span>
         <strong id="weapon-name-label">AK-47</strong>
-        <small>Space 跳 · F 雪糕 · B/滚轮/1/2/3 武器 · Q 刀 · E 主武器</small>
+        <small id="weapon-action-hint">Space 跳 · F 雪糕 · B/滚轮/1/2/3 武器 · Q 刀 · E 主武器</small>
       </div>
 
       <div class="icecream-status" id="icecream-status" hidden>F 巧乐兹 可用</div>
@@ -126,7 +136,7 @@
           <button type="button" data-mobile-action="ads">开镜</button>
           <button class="touch-fire" type="button" data-mobile-action="fire">开火</button>
           <button type="button" data-mobile-action="jump">跳</button>
-          <button type="button" data-mobile-action="cycle-primary">换枪</button>
+          <button type="button" data-mobile-action="cycle-primary">配装</button>
           <button type="button" data-mobile-action="knife">刀</button>
           <button type="button" data-mobile-action="primary">枪</button>
           <button type="button" data-mobile-action="icecream">雪糕</button>
