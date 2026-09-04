@@ -277,18 +277,43 @@ const DETAILED_AK_ATTEMPT_DELAYS = [0, 1500, 5000];
 // The source package is about 46 MB. Let background preloading finish on slower connections.
 const DETAILED_AK_REQUEST_TIMEOUT_MS = 120000;
 const DETAILED_AK_BACKGROUND_RETRY_MS = 30000;
+const DETAILED_AWP_ASSET_PATH = '/models/awp/';
+const DETAILED_AWP_ASSETS = [
+  { filename: 'AWPv2.obj', label: 'AWP V2 高模', type: 'text' },
+  { filename: 'AWPv2.mtl', label: 'AWP 材质定义', type: 'text' },
+  { filename: 'awp_green_texture.jpg', label: '绿色 AWP 贴图', type: 'blob' },
+  { filename: 'awp_khaki_texture.jpg', label: '卡其细节贴图', type: 'blob' }
+];
+const DETAILED_AWP_CACHE_VERSION = 'v1';
+const DETAILED_AWP_CACHE_NAME = `dongdiwebfps-awp-assets-${DETAILED_AWP_CACHE_VERSION}`;
+const DETAILED_AWP_ATTEMPT_DELAYS = [0, 1200, 4200];
+const DETAILED_AWP_REQUEST_TIMEOUT_MS = 60000;
+const DETAILED_AWP_BACKGROUND_RETRY_MS = 30000;
+const DETAILED_KNIFE_ASSET_PATH = '/models/survival-knife/';
+const DETAILED_KNIFE_ASSETS = [
+  { filename: 'Knife.obj', label: 'Survival Knife 高模', type: 'text' },
+  { filename: 'Knife.mtl', label: '刀具材质定义', type: 'text' },
+  { filename: 'KnifeTexture.jpg', label: '刀具纹理贴图', type: 'blob' }
+];
+const DETAILED_KNIFE_CACHE_VERSION = 'v1';
+const DETAILED_KNIFE_CACHE_NAME = `dongdiwebfps-knife-assets-${DETAILED_KNIFE_CACHE_VERSION}`;
+const DETAILED_KNIFE_ATTEMPT_DELAYS = [0, 900, 2600];
+const DETAILED_KNIFE_REQUEST_TIMEOUT_MS = 30000;
+const DETAILED_KNIFE_BACKGROUND_RETRY_MS = 30000;
 const MATCH_LOADING_MAX_MS = 36000;
 const LAN_LOADING_MAX_MS = 44000;
 // This is the rear-sight groove, not the top edge of the receiver.
 const AK_REAR_SIGHT_REFERENCE_FROM_TOP = 0.03;
+// Keeps the iron sights slightly below the reticle, matching the requested ADS framing.
+const AK_ADS_SIGHT_LOWERING = 0.026;
 // Measured from the barrel opening of the imported OBJ, whose forward end is +Z.
 const DETAILED_AK_MUZZLE_RAW_POSITION = new THREE.Vector3(0, 26.09, 179.05);
-const SNIPER_HIP_POSITION = new THREE.Vector3(0.45, -0.41, -0.96);
-const SNIPER_HIP_ROTATION = new THREE.Euler(-0.04, -0.06, 0.014);
+const SNIPER_HIP_POSITION = new THREE.Vector3(0.72, -0.53, -1.14);
+const SNIPER_HIP_ROTATION = new THREE.Euler(-0.04, -0.1, 0.014);
 const SNIPER_ADS_POSITION = SNIPER_HIP_POSITION.clone();
 const SNIPER_ADS_ROTATION = SNIPER_HIP_ROTATION.clone();
-const KNIFE_POSITION = new THREE.Vector3(0.45, -0.48, -0.72);
-const KNIFE_ROTATION = new THREE.Euler(-0.2, -0.42, 0.2);
+const KNIFE_POSITION = new THREE.Vector3(0.84, -0.39, -1.48);
+const KNIFE_ROTATION = new THREE.Euler(-0.16, -0.48, 0.16);
 const SHOTGUN_HIP_POSITION = new THREE.Vector3(0.5, -0.42, -0.88);
 const SHOTGUN_ADS_POSITION = new THREE.Vector3(0.015, -0.235, -0.86);
 const SHOTGUN_HIP_ROTATION = new THREE.Euler(-0.045, -0.08, 0.018);
@@ -604,10 +629,19 @@ let muzzleLight;
 let weaponModels = {};
 const weaponPreviews = [];
 let previewAkSource = null;
+let previewAwpSource = null;
 let detailedAkLoadState = 'idle';
 let detailedAkRetryTimer = null;
 let detailedAkLoadPromise = null;
 let detailedAkLastError = null;
+let detailedAwpLoadState = 'idle';
+let detailedAwpRetryTimer = null;
+let detailedAwpLoadPromise = null;
+let detailedAwpLastError = null;
+let detailedKnifeLoadState = 'idle';
+let detailedKnifeRetryTimer = null;
+let detailedKnifeLoadPromise = null;
+let detailedKnifeLastError = null;
 let detailedAkCachePersistenceRequested = false;
 const accessGate = {
   active: true,
@@ -626,6 +660,26 @@ const detailedAkProgress = {
   assetStates: new Map()
 };
 const detailedAkProgressListeners = new Set();
+const detailedAwpProgress = {
+  loadedBytes: 0,
+  totalBytes: 0,
+  completeAssets: 0,
+  activeAsset: '',
+  phase: 'idle',
+  phaseProgress: 0,
+  assetStates: new Map()
+};
+const detailedAwpProgressListeners = new Set();
+const detailedKnifeProgress = {
+  loadedBytes: 0,
+  totalBytes: 0,
+  completeAssets: 0,
+  activeAsset: '',
+  phase: 'idle',
+  phaseProgress: 0,
+  assetStates: new Map()
+};
+const detailedKnifeProgressListeners = new Set();
 let knifeGroup;
 let icecreamGroup;
 let opponentGroup;
@@ -849,11 +903,15 @@ function init() {
   });
   initScene();
   initUi();
-  detailedAkProgressListeners.add(updateHomeAkLoadingUi);
-  detailedAkProgressListeners.add(updateAccessGateUi);
-  updateHomeAkLoadingUi(getDetailedAkProgressSnapshot());
-  updateAccessGateUi(getDetailedAkProgressSnapshot());
-  ensureDetailedAkModel();
+  detailedAkProgressListeners.add(refreshHomeWeaponLoadingUi);
+  detailedAwpProgressListeners.add(refreshHomeWeaponLoadingUi);
+  detailedKnifeProgressListeners.add(refreshHomeWeaponLoadingUi);
+  detailedAkProgressListeners.add(refreshAccessGateUi);
+  detailedAwpProgressListeners.add(refreshAccessGateUi);
+  detailedKnifeProgressListeners.add(refreshAccessGateUi);
+  updateHomeAkLoadingUi(getDetailedWeaponProgressSnapshot());
+  updateAccessGateUi(getDetailedWeaponProgressSnapshot());
+  ensureDetailedWeaponModels();
   renderMenuStats();
   setOverlay('mode');
   if (getInvitedRoomCode()) {
@@ -1796,7 +1854,7 @@ async function loadDetailedAkModel() {
       weaponGroup.add(object);
       syncWeaponModel();
       previewAkSource = object;
-      weaponPreviews.forEach((preview) => setWeaponPreviewModel(preview, object));
+      refreshWeaponPreviewModels();
       detailedAkLoadState = 'ready';
       detailedAkLastError = null;
       emitDetailedAkProgress();
@@ -1844,6 +1902,232 @@ async function loadDetailedAkSource() {
   return objectLoader.parse(objectText);
 }
 
+function ensureDetailedWeaponModels() {
+  return Promise.all([ensureDetailedAkModel(), ensureDetailedAwpModel(), ensureDetailedKnifeModel()])
+    .then((results) => results.every(Boolean));
+}
+
+function ensureDetailedAwpModel() {
+  if (detailedAwpLoadState === 'ready') return Promise.resolve(true);
+  if (detailedAwpLoadPromise) return detailedAwpLoadPromise;
+  detailedAwpLoadPromise = loadDetailedAwpModel().finally(() => {
+    detailedAwpLoadPromise = null;
+  });
+  return detailedAwpLoadPromise;
+}
+
+async function loadDetailedAwpModel() {
+  if (!weaponGroup || !camera || detailedAwpLoadState === 'ready') return detailedAwpLoadState === 'ready';
+  detailedAwpLoadState = 'loading';
+  let lastError = null;
+
+  for (const [attemptIndex, delay] of DETAILED_AWP_ATTEMPT_DELAYS.entries()) {
+    if (delay) await waitForDetailedAwpRetry(delay);
+    try {
+      resetDetailedAwpProgress();
+      const object = await loadDetailedAwpSource();
+      const bounds = new THREE.Box3().setFromObject(object);
+      const size = bounds.getSize(new THREE.Vector3());
+      const center = bounds.getCenter(new THREE.Vector3());
+      if (!size.x || !size.y) throw new Error('AWP model has invalid bounds');
+
+      // The source model uses +X as the muzzle direction. Rotate it into the camera's -Z forward axis.
+      const scale = 1.92 / size.x;
+      object.scale.setScalar(scale);
+      object.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+      object.rotation.y = Math.PI / 2;
+      object.userData.isDetailedAwp = true;
+      object.traverse((child) => {
+        if (!child.isMesh) return;
+        child.frustumCulled = false;
+        child.castShadow = false;
+        child.receiveShadow = false;
+        if (child.material) {
+          const materialsToTune = Array.isArray(child.material) ? child.material : [child.material];
+          materialsToTune.forEach((material) => {
+            material.side = THREE.FrontSide;
+            material.needsUpdate = true;
+          });
+        }
+      });
+
+      const muzzleRawPosition = new THREE.Vector3(
+        bounds.max.x + size.x * 0.006,
+        center.y,
+        center.z
+      );
+      const muzzleFlash = new THREE.Mesh(
+        new THREE.ConeGeometry(0.18, 0.56, 18, 1, true),
+        createFlashMaterial()
+      );
+      muzzleFlash.rotation.z = -Math.PI / 2;
+      muzzleFlash.position.copy(muzzleRawPosition);
+      muzzleFlash.userData.baseScale = new THREE.Vector3(1 / scale, 1 / scale, 1 / scale);
+      muzzleFlash.scale.copy(muzzleFlash.userData.baseScale);
+      muzzleFlash.visible = false;
+      object.add(muzzleFlash);
+
+      const muzzleLight = new THREE.PointLight('#ffbd5a', 0, 3.2);
+      muzzleLight.position.copy(muzzleRawPosition);
+      object.add(muzzleLight);
+
+      const muzzleTip = new THREE.Object3D();
+      muzzleTip.position.copy(muzzleRawPosition);
+      object.add(muzzleTip);
+
+      const previous = weaponModels.sniper;
+      weaponGroup.remove(previous.group);
+      previous.group.visible = false;
+      weaponModels.sniper = { group: object, muzzleTip, muzzleFlash, muzzleLight, detailed: true };
+      weaponGroup.add(object);
+      syncWeaponModel();
+      previewAwpSource = object;
+      refreshWeaponPreviewModels();
+      detailedAwpLoadState = 'ready';
+      detailedAwpLastError = null;
+      emitDetailedAwpProgress();
+      return true;
+    } catch (error) {
+      lastError = error;
+      console.warn(`Detailed AWP model load attempt ${attemptIndex + 1} failed.`, error);
+    }
+  }
+
+  detailedAwpLoadState = 'fallback';
+  detailedAwpLastError = lastError;
+  console.warn('Detailed AWP model is unavailable for now; using the built-in model and retrying in the background.', lastError);
+  window.clearTimeout(detailedAwpRetryTimer);
+  detailedAwpRetryTimer = window.setTimeout(() => {
+    detailedAwpLoadState = 'idle';
+    ensureDetailedAwpModel();
+  }, DETAILED_AWP_BACKGROUND_RETRY_MS);
+  emitDetailedAwpProgress();
+  return false;
+}
+
+async function loadDetailedAwpSource() {
+  const assets = await Promise.all(DETAILED_AWP_ASSETS.map(fetchDetailedAwpAsset));
+  const assetMap = new Map(assets.map((asset) => [asset.filename, asset.blob]));
+  let materialText = await assetMap.get('AWPv2.mtl').text();
+  // The source appends a few editor helper lines to the final mesh object. Without
+  // removing them, OBJLoader converts the full AWP body into a line-segment object.
+  const objectText = (await assetMap.get('AWPv2.obj').text()).replace(/^l\s+.*$/gm, '');
+  setDetailedAwpPhase('materials');
+
+  DETAILED_AWP_ASSETS.filter((asset) => asset.type === 'blob').forEach((asset) => {
+    const blob = assetMap.get(asset.filename);
+    if (!blob) return;
+    materialText = materialText.replaceAll(asset.filename, URL.createObjectURL(blob));
+  });
+
+  const textureManager = new THREE.LoadingManager();
+  const materialLoader = new MTLLoader(textureManager);
+  const materials = materialLoader.parse(materialText, '');
+  await preloadDetailedAwpMaterials(materials, textureManager);
+  tuneDetailedAwpMaterials(materials);
+  setDetailedAwpPhase('geometry');
+  await nextFrame();
+  const objectLoader = new OBJLoader();
+  objectLoader.setMaterials(materials);
+  return objectLoader.parse(objectText);
+}
+
+function ensureDetailedKnifeModel() {
+  if (detailedKnifeLoadState === 'ready') return Promise.resolve(true);
+  if (detailedKnifeLoadPromise) return detailedKnifeLoadPromise;
+  detailedKnifeLoadPromise = loadDetailedKnifeModel().finally(() => {
+    detailedKnifeLoadPromise = null;
+  });
+  return detailedKnifeLoadPromise;
+}
+
+async function loadDetailedKnifeModel() {
+  if (!weaponGroup || !camera || detailedKnifeLoadState === 'ready') return detailedKnifeLoadState === 'ready';
+  detailedKnifeLoadState = 'loading';
+  let lastError = null;
+
+  for (const [attemptIndex, delay] of DETAILED_KNIFE_ATTEMPT_DELAYS.entries()) {
+    if (delay) await waitForDetailedKnifeRetry(delay);
+    try {
+      resetDetailedKnifeProgress();
+      const object = await loadDetailedKnifeSource();
+      const bounds = new THREE.Box3().setFromObject(object);
+      const size = bounds.getSize(new THREE.Vector3());
+      const center = bounds.getCenter(new THREE.Vector3());
+      if (!size.z || !size.y) throw new Error('Survival Knife model has invalid bounds');
+
+      // This source is long on Z. Center it before the existing viewmodel pose is applied.
+      const scale = 1.18 / size.z;
+      object.scale.setScalar(scale);
+      object.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+      object.rotation.y = Math.PI;
+      object.userData.isDetailedKnife = true;
+      object.traverse((child) => {
+        if (!child.isMesh) return;
+        child.frustumCulled = false;
+        child.castShadow = false;
+        child.receiveShadow = false;
+        if (child.material) {
+          const materialsToTune = Array.isArray(child.material) ? child.material : [child.material];
+          materialsToTune.forEach((material) => {
+            material.side = THREE.DoubleSide;
+            material.needsUpdate = true;
+          });
+        }
+      });
+
+      const previous = knifeGroup;
+      weaponGroup.remove(previous);
+      previous.visible = false;
+      knifeGroup = object;
+      weaponGroup.add(object);
+      syncWeaponModel();
+      detailedKnifeLoadState = 'ready';
+      detailedKnifeLastError = null;
+      emitDetailedKnifeProgress();
+      return true;
+    } catch (error) {
+      lastError = error;
+      console.warn(`Detailed Survival Knife model load attempt ${attemptIndex + 1} failed.`, error);
+    }
+  }
+
+  detailedKnifeLoadState = 'fallback';
+  detailedKnifeLastError = lastError;
+  console.warn('Detailed Survival Knife model is unavailable for now; using the built-in knife and retrying in the background.', lastError);
+  window.clearTimeout(detailedKnifeRetryTimer);
+  detailedKnifeRetryTimer = window.setTimeout(() => {
+    detailedKnifeLoadState = 'idle';
+    ensureDetailedKnifeModel();
+  }, DETAILED_KNIFE_BACKGROUND_RETRY_MS);
+  emitDetailedKnifeProgress();
+  return false;
+}
+
+async function loadDetailedKnifeSource() {
+  const assets = await Promise.all(DETAILED_KNIFE_ASSETS.map(fetchDetailedKnifeAsset));
+  const assetMap = new Map(assets.map((asset) => [asset.filename, asset.blob]));
+  let materialText = await assetMap.get('Knife.mtl').text();
+  // The export appends editor helper lines to the same OBJ object. OBJLoader then treats the
+  // whole object as line segments, so discard only those non-renderable helper records.
+  const objectText = (await assetMap.get('Knife.obj').text()).replace(/^l\s+.*$/gm, '');
+  setDetailedKnifePhase('materials');
+
+  const textureBlob = assetMap.get('KnifeTexture.jpg');
+  if (textureBlob) materialText = materialText.replaceAll('KnifeTexture.jpg', URL.createObjectURL(textureBlob));
+
+  const textureManager = new THREE.LoadingManager();
+  const materialLoader = new MTLLoader(textureManager);
+  const materials = materialLoader.parse(materialText, '');
+  await preloadDetailedKnifeMaterials(materials, textureManager);
+  tuneDetailedKnifeMaterials(materials);
+  setDetailedKnifePhase('geometry');
+  await nextFrame();
+  const objectLoader = new OBJLoader();
+  objectLoader.setMaterials(materials);
+  return objectLoader.parse(objectText);
+}
+
 async function fetchDetailedAkAsset(asset) {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), DETAILED_AK_REQUEST_TIMEOUT_MS);
@@ -1884,10 +2168,104 @@ async function fetchDetailedAkAsset(asset) {
   }
 }
 
+async function fetchDetailedAwpAsset(asset) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), DETAILED_AWP_REQUEST_TIMEOUT_MS);
+  const state = {
+    filename: asset.filename,
+    label: asset.label,
+    loadedBytes: 0,
+    totalBytes: 0,
+    status: 'loading',
+    source: 'network'
+  };
+  detailedAwpProgress.assetStates.set(asset.filename, state);
+  emitDetailedAwpProgress();
+  try {
+    const url = getDetailedAwpAssetUrl(asset);
+    const cachedResponse = await getCachedDetailedAwpAsset(url);
+    if (cachedResponse) {
+      state.source = 'cache';
+      emitDetailedAwpProgress();
+      const blob = await readDetailedAwpAssetResponse(cachedResponse, state);
+      return { filename: asset.filename, blob };
+    }
+
+    const response = await fetch(url, {
+      cache: 'force-cache',
+      signal: controller.signal
+    });
+    if (!response.ok) throw new Error(`AWP asset request failed: ${asset.filename} (${response.status})`);
+    const blob = await readDetailedAwpAssetResponse(response, state);
+    await cacheDetailedAwpAsset(url, blob, response.headers.get('content-type'));
+    return { filename: asset.filename, blob };
+  } catch (error) {
+    state.status = 'error';
+    emitDetailedAwpProgress();
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+async function fetchDetailedKnifeAsset(asset) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), DETAILED_KNIFE_REQUEST_TIMEOUT_MS);
+  const state = {
+    filename: asset.filename,
+    label: asset.label,
+    loadedBytes: 0,
+    totalBytes: 0,
+    status: 'loading',
+    source: 'network'
+  };
+  detailedKnifeProgress.assetStates.set(asset.filename, state);
+  emitDetailedKnifeProgress();
+  try {
+    const url = getDetailedKnifeAssetUrl(asset);
+    const cachedResponse = await getCachedDetailedKnifeAsset(url);
+    if (cachedResponse) {
+      state.source = 'cache';
+      emitDetailedKnifeProgress();
+      const blob = await readDetailedKnifeAssetResponse(cachedResponse, state);
+      return { filename: asset.filename, blob };
+    }
+
+    const response = await fetch(url, {
+      cache: 'force-cache',
+      signal: controller.signal
+    });
+    if (!response.ok) throw new Error(`Survival Knife asset request failed: ${asset.filename} (${response.status})`);
+    const blob = await readDetailedKnifeAssetResponse(response, state);
+    await cacheDetailedKnifeAsset(url, blob, response.headers.get('content-type'));
+    return { filename: asset.filename, blob };
+  } catch (error) {
+    state.status = 'error';
+    emitDetailedKnifeProgress();
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 function getDetailedAkAssetUrl(asset) {
   const path = `${DETAILED_AK_ASSET_PATH}${asset.filename}`;
   const url = new URL(path, window.location.origin);
   url.searchParams.set('v', DETAILED_AK_CACHE_VERSION);
+  return url.toString();
+}
+
+function getDetailedAwpAssetUrl(asset) {
+  const path = `${DETAILED_AWP_ASSET_PATH}${asset.filename}`;
+  const url = new URL(path, window.location.origin);
+  url.searchParams.set('v', DETAILED_AWP_CACHE_VERSION);
+  return url.toString();
+}
+
+function getDetailedKnifeAssetUrl(asset) {
+  const path = `${DETAILED_KNIFE_ASSET_PATH}${asset.filename}`;
+  const url = new URL(path, window.location.origin);
+  url.searchParams.set('v', DETAILED_KNIFE_CACHE_VERSION);
   return url.toString();
 }
 
@@ -1898,6 +2276,28 @@ async function getCachedDetailedAkAsset(url) {
     return await cache.match(url);
   } catch (error) {
     console.warn('AK local cache is unavailable; using network assets.', error);
+    return null;
+  }
+}
+
+async function getCachedDetailedAwpAsset(url) {
+  if (!window.caches?.open) return null;
+  try {
+    const cache = await window.caches.open(DETAILED_AWP_CACHE_NAME);
+    return await cache.match(url);
+  } catch (error) {
+    console.warn('AWP local cache is unavailable; using network assets.', error);
+    return null;
+  }
+}
+
+async function getCachedDetailedKnifeAsset(url) {
+  if (!window.caches?.open) return null;
+  try {
+    const cache = await window.caches.open(DETAILED_KNIFE_CACHE_NAME);
+    return await cache.match(url);
+  } catch (error) {
+    console.warn('Survival Knife local cache is unavailable; using network assets.', error);
     return null;
   }
 }
@@ -1914,6 +2314,36 @@ async function cacheDetailedAkAsset(url, blob, contentType) {
     requestDetailedAkStoragePersistence();
   } catch (error) {
     console.warn('AK asset downloaded but could not be saved locally.', error);
+  }
+}
+
+async function cacheDetailedAwpAsset(url, blob, contentType) {
+  if (!window.caches?.open) return;
+  try {
+    const cache = await window.caches.open(DETAILED_AWP_CACHE_NAME);
+    const headers = new Headers({
+      'content-length': String(blob.size),
+      'content-type': contentType || blob.type || 'application/octet-stream'
+    });
+    await cache.put(url, new Response(blob, { headers }));
+    requestDetailedAkStoragePersistence();
+  } catch (error) {
+    console.warn('AWP asset downloaded but could not be saved locally.', error);
+  }
+}
+
+async function cacheDetailedKnifeAsset(url, blob, contentType) {
+  if (!window.caches?.open) return;
+  try {
+    const cache = await window.caches.open(DETAILED_KNIFE_CACHE_NAME);
+    const headers = new Headers({
+      'content-length': String(blob.size),
+      'content-type': contentType || blob.type || 'application/octet-stream'
+    });
+    await cache.put(url, new Response(blob, { headers }));
+    requestDetailedAkStoragePersistence();
+  } catch (error) {
+    console.warn('Survival Knife downloaded but could not be saved locally.', error);
   }
 }
 
@@ -1959,6 +2389,70 @@ async function readDetailedAkAssetResponse(response, state) {
     return blob;
 }
 
+async function readDetailedAwpAssetResponse(response, state) {
+  const contentLength = Number(response.headers.get('content-length')) || 0;
+  state.totalBytes = contentLength;
+
+  if (!response.body) {
+    const blob = await response.blob();
+    state.loadedBytes = blob.size;
+    state.totalBytes ||= blob.size;
+    state.status = 'ready';
+    emitDetailedAwpProgress();
+    return blob;
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let received = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.byteLength;
+    state.loadedBytes = received;
+    emitDetailedAwpProgress();
+  }
+  const blob = new Blob(chunks, { type: response.headers.get('content-type') || '' });
+  state.loadedBytes = blob.size;
+  state.totalBytes ||= blob.size;
+  state.status = 'ready';
+  emitDetailedAwpProgress();
+  return blob;
+}
+
+async function readDetailedKnifeAssetResponse(response, state) {
+  const contentLength = Number(response.headers.get('content-length')) || 0;
+  state.totalBytes = contentLength;
+
+  if (!response.body) {
+    const blob = await response.blob();
+    state.loadedBytes = blob.size;
+    state.totalBytes ||= blob.size;
+    state.status = 'ready';
+    emitDetailedKnifeProgress();
+    return blob;
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let received = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.byteLength;
+    state.loadedBytes = received;
+    emitDetailedKnifeProgress();
+  }
+  const blob = new Blob(chunks, { type: response.headers.get('content-type') || '' });
+  state.loadedBytes = blob.size;
+  state.totalBytes ||= blob.size;
+  state.status = 'ready';
+  emitDetailedKnifeProgress();
+  return blob;
+}
+
 function preloadDetailedAkMaterials(materials, manager) {
   return new Promise((resolve) => {
     let completed = false;
@@ -1981,7 +2475,73 @@ function preloadDetailedAkMaterials(materials, manager) {
   });
 }
 
+function preloadDetailedAwpMaterials(materials, manager) {
+  return new Promise((resolve) => {
+    let completed = false;
+    const finish = () => {
+      if (completed) return;
+      completed = true;
+      window.clearTimeout(timeout);
+      resolve();
+    };
+    const timeout = window.setTimeout(finish, 8000);
+    manager.onLoad = finish;
+    manager.onProgress = (url, loaded, total) => {
+      setDetailedAwpPhase('materials', total > 0 ? loaded / total : 0);
+    };
+    manager.onError = (url) => console.warn('AWP texture decode failed.', url);
+    materials.preload();
+    queueMicrotask(() => {
+      if (!manager.itemsTotal || manager.itemsLoaded >= manager.itemsTotal) finish();
+    });
+  });
+}
+
+function preloadDetailedKnifeMaterials(materials, manager) {
+  return new Promise((resolve) => {
+    let completed = false;
+    const finish = () => {
+      if (completed) return;
+      completed = true;
+      window.clearTimeout(timeout);
+      resolve();
+    };
+    const timeout = window.setTimeout(finish, 8000);
+    manager.onLoad = finish;
+    manager.onProgress = (url, loaded, total) => {
+      setDetailedKnifePhase('materials', total > 0 ? loaded / total : 0);
+    };
+    manager.onError = (url) => console.warn('Survival Knife texture decode failed.', url);
+    materials.preload();
+    queueMicrotask(() => {
+      if (!manager.itemsTotal || manager.itemsLoaded >= manager.itemsTotal) finish();
+    });
+  });
+}
+
 function tuneDetailedAkMaterials(materials) {
+  const maxAnisotropy = renderer?.capabilities?.getMaxAnisotropy?.() || 1;
+  Object.values(materials.materials || {}).forEach((material) => {
+    if (material.map) {
+      material.map.colorSpace = THREE.SRGBColorSpace;
+      material.map.anisotropy = Math.min(8, maxAnisotropy);
+    }
+    material.needsUpdate = true;
+  });
+}
+
+function tuneDetailedAwpMaterials(materials) {
+  const maxAnisotropy = renderer?.capabilities?.getMaxAnisotropy?.() || 1;
+  Object.values(materials.materials || {}).forEach((material) => {
+    if (material.map) {
+      material.map.colorSpace = THREE.SRGBColorSpace;
+      material.map.anisotropy = Math.min(8, maxAnisotropy);
+    }
+    material.needsUpdate = true;
+  });
+}
+
+function tuneDetailedKnifeMaterials(materials) {
   const maxAnisotropy = renderer?.capabilities?.getMaxAnisotropy?.() || 1;
   Object.values(materials.materials || {}).forEach((material) => {
     if (material.map) {
@@ -2003,10 +2563,44 @@ function resetDetailedAkProgress() {
   emitDetailedAkProgress();
 }
 
+function resetDetailedAwpProgress() {
+  detailedAwpProgress.loadedBytes = 0;
+  detailedAwpProgress.totalBytes = 0;
+  detailedAwpProgress.completeAssets = 0;
+  detailedAwpProgress.activeAsset = '';
+  detailedAwpProgress.phase = 'download';
+  detailedAwpProgress.phaseProgress = 0;
+  detailedAwpProgress.assetStates.clear();
+  emitDetailedAwpProgress();
+}
+
+function resetDetailedKnifeProgress() {
+  detailedKnifeProgress.loadedBytes = 0;
+  detailedKnifeProgress.totalBytes = 0;
+  detailedKnifeProgress.completeAssets = 0;
+  detailedKnifeProgress.activeAsset = '';
+  detailedKnifeProgress.phase = 'download';
+  detailedKnifeProgress.phaseProgress = 0;
+  detailedKnifeProgress.assetStates.clear();
+  emitDetailedKnifeProgress();
+}
+
 function setDetailedAkPhase(phase, phaseProgress = 0) {
   detailedAkProgress.phase = phase;
   detailedAkProgress.phaseProgress = THREE.MathUtils.clamp(phaseProgress, 0, 1);
   emitDetailedAkProgress();
+}
+
+function setDetailedAwpPhase(phase, phaseProgress = 0) {
+  detailedAwpProgress.phase = phase;
+  detailedAwpProgress.phaseProgress = THREE.MathUtils.clamp(phaseProgress, 0, 1);
+  emitDetailedAwpProgress();
+}
+
+function setDetailedKnifePhase(phase, phaseProgress = 0) {
+  detailedKnifeProgress.phase = phase;
+  detailedKnifeProgress.phaseProgress = THREE.MathUtils.clamp(phaseProgress, 0, 1);
+  emitDetailedKnifeProgress();
 }
 
 function getDetailedAkProgressSnapshot() {
@@ -2029,9 +2623,91 @@ function getDetailedAkProgressSnapshot() {
   };
 }
 
+function getDetailedAwpProgressSnapshot() {
+  const assets = Array.from(detailedAwpProgress.assetStates.values()).map((asset) => ({ ...asset }));
+  const loadedBytes = assets.reduce((sum, asset) => sum + asset.loadedBytes, 0);
+  const totalBytes = assets.reduce((sum, asset) => sum + asset.totalBytes, 0);
+  const completeAssets = assets.filter((asset) => asset.status === 'ready').length;
+  const activeAsset = assets.find((asset) => asset.status === 'loading')?.label || '';
+  return {
+    state: detailedAwpLoadState,
+    loadedBytes,
+    totalBytes,
+    completeAssets,
+    totalAssets: DETAILED_AWP_ASSETS.length,
+    activeAsset,
+    phase: detailedAwpProgress.phase,
+    phaseProgress: detailedAwpProgress.phaseProgress,
+    assets,
+    error: detailedAwpLastError
+  };
+}
+
+function getDetailedKnifeProgressSnapshot() {
+  const assets = Array.from(detailedKnifeProgress.assetStates.values()).map((asset) => ({ ...asset }));
+  const loadedBytes = assets.reduce((sum, asset) => sum + asset.loadedBytes, 0);
+  const totalBytes = assets.reduce((sum, asset) => sum + asset.totalBytes, 0);
+  const completeAssets = assets.filter((asset) => asset.status === 'ready').length;
+  const activeAsset = assets.find((asset) => asset.status === 'loading')?.label || '';
+  return {
+    state: detailedKnifeLoadState,
+    loadedBytes,
+    totalBytes,
+    completeAssets,
+    totalAssets: DETAILED_KNIFE_ASSETS.length,
+    activeAsset,
+    phase: detailedKnifeProgress.phase,
+    phaseProgress: detailedKnifeProgress.phaseProgress,
+    assets,
+    error: detailedKnifeLastError
+  };
+}
+
 function emitDetailedAkProgress() {
   const snapshot = getDetailedAkProgressSnapshot();
   detailedAkProgressListeners.forEach((listener) => listener(snapshot));
+}
+
+function emitDetailedAwpProgress() {
+  const snapshot = getDetailedAwpProgressSnapshot();
+  detailedAwpProgressListeners.forEach((listener) => listener(snapshot));
+}
+
+function emitDetailedKnifeProgress() {
+  const snapshot = getDetailedKnifeProgressSnapshot();
+  detailedKnifeProgressListeners.forEach((listener) => listener(snapshot));
+}
+
+function getDetailedWeaponAssets() {
+  return DETAILED_AK_ASSETS.concat(DETAILED_AWP_ASSETS, DETAILED_KNIFE_ASSETS);
+}
+
+function areDetailedWeaponModelsReady() {
+  return detailedAkLoadState === 'ready' && detailedAwpLoadState === 'ready' && detailedKnifeLoadState === 'ready';
+}
+
+function getDetailedWeaponProgressSnapshot() {
+  const ak = getDetailedAkProgressSnapshot();
+  const awp = getDetailedAwpProgressSnapshot();
+  const knife = getDetailedKnifeProgressSnapshot();
+  const pending = [ak, awp, knife].find((snapshot) => snapshot.state !== 'ready') || knife;
+  const assets = ak.assets.concat(awp.assets, knife.assets);
+  const allReady = areDetailedWeaponModelsReady();
+  const anyFallback = [ak, awp, knife].some((snapshot) => snapshot.state === 'fallback');
+  const anyLoading = [ak, awp, knife].some((snapshot) => snapshot.state === 'loading');
+
+  return {
+    state: allReady ? 'ready' : anyFallback ? 'fallback' : anyLoading ? 'loading' : pending.state,
+    loadedBytes: ak.loadedBytes + awp.loadedBytes + knife.loadedBytes,
+    totalBytes: ak.totalBytes + awp.totalBytes + knife.totalBytes,
+    completeAssets: ak.completeAssets + awp.completeAssets + knife.completeAssets,
+    totalAssets: ak.totalAssets + awp.totalAssets + knife.totalAssets,
+    activeAsset: pending.activeAsset,
+    phase: pending.phase,
+    phaseProgress: pending.phaseProgress,
+    assets,
+    error: pending.error
+  };
 }
 
 function getDetailedAkTransferProgress(snapshot) {
@@ -2043,13 +2719,15 @@ function getDetailedAkTransferProgress(snapshot) {
 
 function getDetailedAkProgressLabel(snapshot, progress) {
   if (snapshot.state === 'ready') {
-    const loadedFromCache = snapshot.assets.length === DETAILED_AK_ASSETS.length
+    const loadedFromCache = snapshot.assets.length === getDetailedWeaponAssets().length
       && snapshot.assets.every((asset) => asset.source === 'cache');
-    return loadedFromCache ? 'AK 高模已从本机缓存加载' : 'AK 高模、材质与贴图已就绪';
+    return loadedFromCache
+      ? 'AK、AWP 与 Survival Knife 高模已从本机缓存加载'
+      : 'AK、AWP 与 Survival Knife 高模、材质和贴图已就绪';
   }
-  if (snapshot.state === 'fallback') return '备用模型启用，正在后台重试';
+  if (snapshot.state === 'fallback') return '高模同步尚未完成，正在后台重试';
   if (snapshot.phase === 'materials') return '文件下载完成，正在解码材质与贴图';
-  if (snapshot.phase === 'geometry') return '文件下载完成，正在解析 AK 高模';
+  if (snapshot.phase === 'geometry') return '文件下载完成，正在解析武器高模';
   const activeAsset = snapshot.assets.find((asset) => asset.status === 'loading');
   if (activeAsset?.source === 'cache') return `${progress}% · 正在从本机缓存读取 ${activeAsset.label}`;
   return `${progress}% · ${snapshot.activeAsset || '正在准备资源队列'}`;
@@ -2067,7 +2745,7 @@ function beginMatchLoading(intent) {
     return;
   }
   if (matchLoading.active) {
-    if (matchLoading.intent === intent) updateMatchLoadingUi(getDetailedAkProgressSnapshot());
+    if (matchLoading.intent === intent) updateMatchLoadingUi(getDetailedWeaponProgressSnapshot());
     return;
   }
 
@@ -2076,7 +2754,7 @@ function beginMatchLoading(intent) {
   matchLoading.intent = intent;
   matchLoading.startedAt = now;
   matchLoading.deadlineAt = now + (isLanMatch ? LAN_LOADING_MAX_MS : MATCH_LOADING_MAX_MS);
-  matchLoading.localAssetsReady = detailedAkLoadState === 'ready';
+  matchLoading.localAssetsReady = areDetailedWeaponModelsReady();
   matchLoading.serverStarted = Boolean(isLanMatch && lanRoom?.started);
   matchLoading.assetsReadySent = false;
   matchLoading.timedOut = false;
@@ -2084,25 +2762,27 @@ function beginMatchLoading(intent) {
   setOverlay(null);
   dom.matchLoading.hidden = false;
   document.body.classList.add('is-match-loading');
-  detailedAkProgressListeners.add(updateMatchLoadingUi);
-  updateMatchLoadingUi(getDetailedAkProgressSnapshot());
+  detailedAkProgressListeners.add(refreshMatchLoadingUi);
+  detailedAwpProgressListeners.add(refreshMatchLoadingUi);
+  detailedKnifeProgressListeners.add(refreshMatchLoadingUi);
+  updateMatchLoadingUi(getDetailedWeaponProgressSnapshot());
 
   matchLoading.timeoutId = window.setTimeout(() => {
     if (!matchLoading.active || matchLoading.intent !== intent) return;
     matchLoading.timedOut = true;
     markMatchAssetsReady();
   }, isLanMatch ? LAN_LOADING_MAX_MS : MATCH_LOADING_MAX_MS);
-  matchLoading.tickId = window.setInterval(() => updateMatchLoadingUi(getDetailedAkProgressSnapshot()), 250);
+  matchLoading.tickId = window.setInterval(() => updateMatchLoadingUi(getDetailedWeaponProgressSnapshot()), 250);
 
   if (matchLoading.localAssetsReady) {
     markMatchAssetsReady();
     return;
   }
 
-  ensureDetailedAkModel()
-    .then(() => {
+  ensureDetailedWeaponModels()
+    .then((ready) => {
       if (!matchLoading.active || matchLoading.intent !== intent) return;
-      markMatchAssetsReady();
+      if (ready) markMatchAssetsReady();
     })
     .catch(() => {
       if (!matchLoading.active || matchLoading.intent !== intent) return;
@@ -2118,13 +2798,13 @@ function markMatchAssetsReady() {
     matchLoading.assetsReadySent = true;
     sendLan({ type: 'assets-ready' });
   }
-  updateMatchLoadingUi(getDetailedAkProgressSnapshot());
+  updateMatchLoadingUi(getDetailedWeaponProgressSnapshot());
 }
 
 function continueMatchLoading() {
   if (!matchLoading.active || !matchLoading.localAssetsReady) return;
   if (matchLoading.intent === 'lan-enter' && !lanRoom?.started && !matchLoading.serverStarted) {
-    updateMatchLoadingUi(getDetailedAkProgressSnapshot());
+    updateMatchLoadingUi(getDetailedWeaponProgressSnapshot());
     return;
   }
 
@@ -2137,7 +2817,9 @@ function continueMatchLoading() {
 function closeMatchLoading() {
   window.clearTimeout(matchLoading.timeoutId);
   window.clearInterval(matchLoading.tickId);
-  detailedAkProgressListeners.delete(updateMatchLoadingUi);
+  detailedAkProgressListeners.delete(refreshMatchLoadingUi);
+  detailedAwpProgressListeners.delete(refreshMatchLoadingUi);
+  detailedKnifeProgressListeners.delete(refreshMatchLoadingUi);
   matchLoading.active = false;
   matchLoading.intent = '';
   matchLoading.startedAt = 0;
@@ -2172,7 +2854,7 @@ function updateMatchLoadingUi(snapshot) {
   dom.matchLoadingProgress.classList.toggle('is-processing', snapshot.state === 'loading' && progress >= 100);
 
   dom.matchLoadingAssets.replaceChildren();
-  DETAILED_AK_ASSETS.forEach((asset) => {
+  getDetailedWeaponAssets().forEach((asset) => {
     const item = document.createElement('div');
     const state = assetStates.get(asset.filename);
     const label = document.createElement('span');
@@ -2232,7 +2914,27 @@ function updateHomeAkLoadingUi(snapshot) {
   }
 }
 
+function refreshHomeWeaponLoadingUi() {
+  updateHomeAkLoadingUi(getDetailedWeaponProgressSnapshot());
+}
+
+function refreshMatchLoadingUi() {
+  updateMatchLoadingUi(getDetailedWeaponProgressSnapshot());
+}
+
+function refreshAccessGateUi() {
+  updateAccessGateUi(getDetailedWeaponProgressSnapshot());
+}
+
 function waitForDetailedAkRetry(delay) {
+  return new Promise((resolve) => window.setTimeout(resolve, delay));
+}
+
+function waitForDetailedAwpRetry(delay) {
+  return new Promise((resolve) => window.setTimeout(resolve, delay));
+}
+
+function waitForDetailedKnifeRetry(delay) {
   return new Promise((resolve) => window.setTimeout(resolve, delay));
 }
 
@@ -2257,7 +2959,7 @@ function initWeaponPreviews() {
       previewScene.add(rim);
       const preview = { canvas, container, renderer: previewRenderer, scene: previewScene, camera: previewCamera, model: null, angle: 0 };
       weaponPreviews.push(preview);
-      setWeaponPreviewModel(preview, previewAkSource || weaponModels.ak?.group);
+      refreshWeaponPreviewModels();
       resizeWeaponPreview(preview);
     } catch (error) {
       canvas.hidden = true;
@@ -2287,15 +2989,17 @@ function setWeaponPreviewModel(preview, source) {
   const model = new THREE.Group();
   model.add(sourceClone);
   const isDetailedAk = Boolean(source.userData?.isDetailedAk);
-  model.scale.setScalar(isDetailedAk ? 1.28 : 1.1);
+  const isDetailedAwp = Boolean(source.userData?.isDetailedAwp);
+  model.scale.setScalar(isDetailedAk ? 1.28 : isDetailedAwp ? 0.98 : 1.1);
   model.position.set(0.04, -0.02, 0);
   model.rotation.x = -0.12;
   model.rotation.y = -Math.PI / 2 + 0.12;
-  preview.camera.position.set(0, 0.12, isDetailedAk ? 3.8 : 4.2);
+  preview.camera.position.set(0, 0.12, isDetailedAk ? 3.8 : isDetailedAwp ? 3.9 : 4.2);
   preview.camera.lookAt(0, 0, 0);
   preview.scene.add(model);
   preview.model = model;
-  preview.container.classList.toggle('has-3d-preview', selectedPrimaryWeapon === 'ak');
+  preview.source = source;
+  preview.container.classList.toggle('has-3d-preview', true);
 }
 
 function resizeWeaponPreview(preview) {
@@ -2317,10 +3021,22 @@ function renderWeaponPreviews(delta) {
   });
 }
 
-function syncWeaponPreviewVisibility() {
+function getSelectedWeaponPreviewSource() {
+  if (selectedPrimaryWeapon === 'ak') return previewAkSource || weaponModels.ak?.group || null;
+  if (selectedPrimaryWeapon === 'sniper') return previewAwpSource || weaponModels.sniper?.group || null;
+  return weaponModels[selectedPrimaryWeapon]?.group || null;
+}
+
+function refreshWeaponPreviewModels() {
+  const source = getSelectedWeaponPreviewSource();
   weaponPreviews.forEach((preview) => {
-    preview.container.classList.toggle('has-3d-preview', selectedPrimaryWeapon === 'ak' && Boolean(preview.model));
+    if (source && preview.source !== source) setWeaponPreviewModel(preview, source);
+    preview.container.classList.toggle('has-3d-preview', Boolean(source && preview.model));
   });
+}
+
+function syncWeaponPreviewVisibility() {
+  refreshWeaponPreviewModels();
 }
 
 function createAkModel(materials) {
@@ -2490,35 +3206,29 @@ function createShotgunModel(materials) {
 function createClawKnifeModel(materials) {
   const { darkMetal, rubber, blade, bladeEdge, accent } = materials;
   const group = new THREE.Group();
-  const handle = makeRoundedBox(0.09, 0.34, 0.08, [0.06, -0.07, -0.02], rubber, [0.28, 0.05, -0.46], 0.04);
+  const handle = makeRoundedBox(0.12, 0.16, 0.52, [0.05, -0.08, 0.16], rubber, [0.08, 0.03, 0], 0.035);
   group.add(handle);
-  group.add(makeRoundedBox(0.036, 0.28, 0.092, [0.025, -0.055, -0.02], darkMetal, [0.28, 0.05, -0.46], 0.018));
-  group.add(makeRoundedBox(0.026, 0.2, 0.096, [0.106, -0.085, -0.02], darkMetal, [0.28, 0.05, -0.46], 0.014));
+  group.add(makeRoundedBox(0.135, 0.06, 0.08, [0.05, -0.02, -0.14], darkMetal, [0, 0, 0], 0.014));
+  group.add(makeRoundedBox(0.145, 0.06, 0.09, [0.05, -0.02, 0.46], darkMetal, [0, 0, 0], 0.014));
 
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.014, 10, 28), darkMetal);
-  ring.position.set(0.16, -0.2, 0.02);
-  ring.rotation.set(1.18, 0.24, -0.36);
-  group.add(ring);
-
-  const bladeBody = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.028, 12, 46, Math.PI * 1.28), blade);
-  bladeBody.position.set(-0.055, 0.1, -0.23);
-  bladeBody.rotation.set(0.62, -0.2, -1.2);
+  const bladeBody = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.07, 0.98), blade);
+  bladeBody.position.set(0.04, 0.02, -0.56);
+  bladeBody.rotation.x = -0.02;
   group.add(bladeBody);
 
-  const bladeCut = new THREE.Mesh(new THREE.TorusGeometry(0.245, 0.008, 8, 46, Math.PI * 1.14), bladeEdge);
-  bladeCut.position.set(-0.068, 0.113, -0.235);
-  bladeCut.rotation.set(0.62, -0.2, -1.2);
-  group.add(bladeCut);
+  const bladeTip = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.24, 4), bladeEdge);
+  bladeTip.position.set(0.04, 0.02, -1.16);
+  bladeTip.rotation.x = Math.PI / 2;
+  group.add(bladeTip);
 
-  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.036, 0.13, 18), bladeEdge);
-  tip.position.set(-0.225, 0.25, -0.35);
-  tip.rotation.set(1.18, -0.22, -0.88);
-  group.add(tip);
-
-  const screwA = new THREE.Mesh(new THREE.SphereGeometry(0.015, 10, 8), accent);
-  screwA.position.set(0.045, 0.04, -0.055);
+  const spine = makeRoundedBox(0.064, 0.018, 0.84, [0.04, 0.07, -0.54], darkMetal, [0, 0, 0], 0.008);
+  group.add(spine);
+  const guard = makeRoundedBox(0.24, 0.045, 0.06, [0.04, 0.01, -0.1], darkMetal, [0, 0, 0], 0.012);
+  group.add(guard);
+  const screwA = new THREE.Mesh(new THREE.SphereGeometry(0.014, 10, 8), accent);
+  screwA.position.set(0.05, -0.01, 0.12);
   const screwB = screwA.clone();
-  screwB.position.set(0.1, -0.12, -0.005);
+  screwB.position.z = 0.33;
   group.add(screwA, screwB);
   return group;
 }
@@ -3290,17 +4000,17 @@ async function startAccessGate() {
   accessGate.active = true;
   accessGate.released = false;
   accessGate.accountReady = false;
-  accessGate.resourcesReady = detailedAkLoadState === 'ready';
+  accessGate.resourcesReady = areDetailedWeaponModelsReady();
   accessGate.sessionExpired = false;
   document.body.classList.add('is-access-gated');
   dom.accessGate.hidden = false;
   dom.accessGate.classList.remove('is-releasing');
-  updateAccessGateUi(getDetailedAkProgressSnapshot());
+  updateAccessGateUi(getDetailedWeaponProgressSnapshot());
 
   const initialSnapshot = getAccountSnapshot();
   if (!initialSnapshot.cloudConfigured) {
     setAccessGateAuthStatus('账号服务尚未配置，暂时无法进入大厅。', 'error');
-    updateAccessGateUi(getDetailedAkProgressSnapshot());
+    updateAccessGateUi(getDetailedWeaponProgressSnapshot());
     return;
   }
 
@@ -3312,7 +4022,7 @@ async function startAccessGate() {
       accessGate.sessionExpired ? '登录已超过 30 分钟，请重新输入账号密码。' : '请输入云端账号后继续。',
       accessGate.sessionExpired ? 'warning' : 'idle'
     );
-    updateAccessGateUi(getDetailedAkProgressSnapshot());
+    updateAccessGateUi(getDetailedWeaponProgressSnapshot());
     return;
   }
 
@@ -3330,7 +4040,7 @@ async function startAccessGate() {
   } catch (error) {
     setAccessGateAuthStatus(error?.message || '账号验证失败，请重新登录。', 'error');
   }
-  updateAccessGateUi(getDetailedAkProgressSnapshot());
+  updateAccessGateUi(getDetailedWeaponProgressSnapshot());
 }
 
 async function handleAccessGateAccountAction(action) {
@@ -3380,7 +4090,7 @@ async function handleAccessGateAccountAction(action) {
     setAccessGateAuthStatus(error?.message || '账号登录失败，请稍后重试。', 'error');
   } finally {
     setAccessGateAuthBusy(false);
-    updateAccessGateUi(getDetailedAkProgressSnapshot());
+    updateAccessGateUi(getDetailedWeaponProgressSnapshot());
   }
 }
 
@@ -3395,7 +4105,7 @@ function setAccessGateAuthBusy(busy) {
   if (dom.accessGateSignupButton) dom.accessGateSignupButton.disabled = busy;
 }
 
-function updateAccessGateUi(snapshot = getDetailedAkProgressSnapshot()) {
+function updateAccessGateUi(snapshot = getDetailedWeaponProgressSnapshot()) {
   if (!dom.accessGate) return;
   const progress = getDetailedAkTransferProgress(snapshot);
   accessGate.resourcesReady = snapshot.state === 'ready';
@@ -3413,7 +4123,7 @@ function updateAccessGateUi(snapshot = getDetailedAkProgressSnapshot()) {
   if (dom.accessGateAssetList) {
     const assetStates = new Map(snapshot.assets.map((asset) => [asset.filename, asset]));
     dom.accessGateAssetList.replaceChildren();
-    DETAILED_AK_ASSETS.forEach((asset) => {
+    getDetailedWeaponAssets().forEach((asset) => {
       const state = assetStates.get(asset.filename);
       const item = document.createElement('div');
       const label = document.createElement('span');
@@ -4394,14 +5104,6 @@ function handleKeyDown(event) {
 function handleKeyUp(event) {
   if (!claimKeyboardEvent(event)) return;
   syncModifierKeys(event);
-  const action = normalizeActionKey(event);
-  if (action && state === 'running' && isPointerLockActive() && performance.now() - lastWeaponActionAt > 120) {
-    if (handleWeaponAction(action)) {
-      event.preventDefault();
-      return;
-    }
-  }
-
   const code = normalizeMoveKey(event);
   if (!code) return;
   setMoveKey(code, false);
@@ -4468,8 +5170,16 @@ function handleWeaponAction(action) {
   }
   if (isDuelMode()) {
     if (action === 'cycle-primary') return cycleDuelLoadout(lastWeaponActionAt);
-    // Duel weapons are selected only through the respawn loadout window.
-    return ['weapon-ak', 'weapon-sniper', 'weapon-shotgun', 'knife', 'primary'].includes(action);
+    // Only B changes a primary loadout. Q/E merely toggle knife and the already selected primary.
+    if (action === 'knife') {
+      equipKnife();
+      return true;
+    }
+    if (action === 'primary') {
+      equipPrimaryWeapon();
+      return true;
+    }
+    return ['weapon-ak', 'weapon-sniper', 'weapon-shotgun'].includes(action);
   }
   if (action === 'cycle-primary') {
     cyclePrimaryWeapon();
@@ -4563,7 +5273,7 @@ function getPrimaryWeapon() {
 
 function getCurrentWeapon() {
   if (equippedSlot === 'knife') {
-    return { id: 'knife', label: '爪刀', slotLabel: '近战', automatic: false, fireInterval: KNIFE_ATTACK_INTERVAL };
+    return { id: 'knife', label: 'Survival Knife', slotLabel: '近战', automatic: false, fireInterval: KNIFE_ATTACK_INTERVAL };
   }
   return getPrimaryWeapon();
 }
@@ -4734,7 +5444,7 @@ function updateWeaponUi(now = performance.now()) {
     } else if (isDuelMode() && duel.active) {
       dom.weaponActionHint.textContent = '本条命背包已锁定 · 下次复活后可调整';
     } else {
-      dom.weaponActionHint.textContent = 'Space 跳 · F 雪糕 · B/滚轮/1/2/3 武器 · Q 刀 · E 主武器';
+      dom.weaponActionHint.textContent = 'Space 跳 · F 雪糕 · B/滚轮/1/2/3 武器 · Q 求生刀 · E 主武器';
     }
   }
   updateIcecreamUi(now);
@@ -6477,7 +7187,7 @@ function handleLanMessage(payload) {
       lanCanEnter = true;
       if (matchLoading.active && matchLoading.intent === 'lan-enter') {
         matchLoading.serverStarted = true;
-        updateMatchLoadingUi(getDetailedAkProgressSnapshot());
+        updateMatchLoadingUi(getDetailedWeaponProgressSnapshot());
       } else {
         dom.lanEnterButton.hidden = false;
       }
@@ -6893,7 +7603,7 @@ function alignDetailedAkSightToCrosshair(blend) {
   akSightCameraSpace.copy(akSightWorld);
   camera.worldToLocal(akSightCameraSpace);
   weaponGroup.position.x -= akSightCameraSpace.x * blend;
-  weaponGroup.position.y -= akSightCameraSpace.y * blend;
+  weaponGroup.position.y -= (akSightCameraSpace.y + AK_ADS_SIGHT_LOWERING) * blend;
 }
 
 function animateIcecream(now) {
@@ -7085,7 +7795,13 @@ function exposeDebugState() {
           shotgunSpinning: performance.now() < shotgunSpinUntil,
           modelVisible: Object.fromEntries(Object.entries(weaponModels).map(([id, model]) => [id, Boolean(model.group.visible)])),
           shotgunPumpZ: weaponModels.shotgun?.pump?.position?.z ?? null,
-          scopedSensitivityScale: SNIPER_ADS_SENSITIVITY_SCALE
+          scopedSensitivityScale: SNIPER_ADS_SENSITIVITY_SCALE,
+          detailedModels: {
+            ak: detailedAkLoadState,
+            awp: detailedAwpLoadState,
+            knife: detailedKnifeLoadState
+          },
+          knifeViewBounds: getViewBounds(knifeGroup)
         },
         duel: { ...duel },
         session: { shots: session.shots, hits: session.hits, misses: session.misses },
@@ -7120,6 +7836,31 @@ function exposeDebugState() {
         Number(feetY)
       );
     }
+  };
+}
+
+function getViewBounds(object) {
+  if (!object || !camera) return null;
+  object.updateWorldMatrix(true, true);
+  const bounds = new THREE.Box3().setFromObject(object);
+  if (bounds.isEmpty()) return null;
+  const corners = [
+    [bounds.min.x, bounds.min.y, bounds.min.z],
+    [bounds.min.x, bounds.min.y, bounds.max.z],
+    [bounds.min.x, bounds.max.y, bounds.min.z],
+    [bounds.min.x, bounds.max.y, bounds.max.z],
+    [bounds.max.x, bounds.min.y, bounds.min.z],
+    [bounds.max.x, bounds.min.y, bounds.max.z],
+    [bounds.max.x, bounds.max.y, bounds.min.z],
+    [bounds.max.x, bounds.max.y, bounds.max.z]
+  ].map(([x, y, z]) => new THREE.Vector3(x, y, z).project(camera));
+  return {
+    minX: Math.min(...corners.map((point) => point.x)),
+    maxX: Math.max(...corners.map((point) => point.x)),
+    minY: Math.min(...corners.map((point) => point.y)),
+    maxY: Math.max(...corners.map((point) => point.y)),
+    minZ: Math.min(...corners.map((point) => point.z)),
+    maxZ: Math.max(...corners.map((point) => point.z))
   };
 }
 

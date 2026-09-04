@@ -1,0 +1,17 @@
+# Source package did not include its referenced material library. Keep the two supplied skins
+# as explicit browser-loadable materials so the OBJ remains portable and cacheable.
+newmtl Material__72
+Ka 0.18 0.18 0.18
+Kd 1.000 1.000 1.000
+Ks 0.180 0.180 0.180
+Ns 180.000
+illum 2
+map_Kd awp_green_texture.jpg
+
+newmtl Material__73
+Ka 0.18 0.18 0.18
+Kd 1.000 1.000 1.000
+Ks 0.180 0.180 0.180
+Ns 180.000
+illum 2
+map_Kd awp_khaki_texture.jpg
