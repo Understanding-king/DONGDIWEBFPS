@@ -308,7 +308,8 @@ const AK_REAR_SIGHT_REFERENCE_FROM_TOP = 0.03;
 const AK_ADS_SIGHT_LOWERING = 0.026;
 // Measured from the barrel opening of the imported OBJ, whose forward end is +Z.
 const DETAILED_AK_MUZZLE_RAW_POSITION = new THREE.Vector3(0, 26.09, 179.05);
-const SNIPER_HIP_POSITION = new THREE.Vector3(0.72, -0.53, -1.14);
+// Keep the enlarged AWP clear of the reticle and move its weight away from the lower-right corner.
+const SNIPER_HIP_POSITION = new THREE.Vector3(0.38, -0.34, -1.24);
 const SNIPER_HIP_ROTATION = new THREE.Euler(-0.04, -0.1, 0.014);
 const SNIPER_ADS_POSITION = SNIPER_HIP_POSITION.clone();
 const SNIPER_ADS_ROTATION = SNIPER_HIP_ROTATION.clone();
@@ -1933,7 +1934,7 @@ async function loadDetailedAwpModel() {
 
       // This Blender export uses +X for the muzzle and -Z for the top of the rifle.
       // Map those axes directly to the viewmodel's forward (-Z) and upward (+Y) directions.
-      const scale = 2.35 / size.x;
+      const scale = 2.8 / size.x;
       object.scale.setScalar(scale);
       object.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
         new THREE.Vector3(0, 0, -1),
