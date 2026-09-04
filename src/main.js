@@ -808,6 +808,7 @@ function init() {
     attrs: { 'aria-hidden': 'true' }
   });
   initScene();
+  ensureDetailedAkModel();
   initUi();
   renderMenuStats();
   setOverlay('mode');
