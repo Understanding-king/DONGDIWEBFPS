@@ -1505,6 +1505,8 @@ input[type="range"] {
   transition: width .18s ease;
 }
 
+.match-loading-progress.is-processing span { animation: asset-processing 1s ease-in-out infinite; }
+
 .match-loading-readout {
   display: flex;
   align-items: baseline;
@@ -2540,6 +2542,13 @@ body.is-scoped .crosshair {
 .loadout-sync[data-state="ready"] > strong { color: var(--cyan); }
 .loadout-sync[data-state="fallback"] > span,
 .loadout-sync[data-state="fallback"] > strong { color: var(--amber); }
+.loadout-sync[data-phase="materials"] > i > b,
+.loadout-sync[data-phase="geometry"] > i > b { animation: asset-processing 1s ease-in-out infinite; }
+
+@keyframes asset-processing {
+  0%, 100% { opacity: .5; filter: brightness(.85); }
+  50% { opacity: 1; filter: brightness(1.3); }
+}
 
 .weapon-silhouette {
   position: relative;

@@ -588,6 +588,8 @@ const detailedAkProgress = {
   totalBytes: 0,
   completeAssets: 0,
   activeAsset: '',
+  phase: 'idle',
+  phaseProgress: 0,
   assetStates: new Map()
 };
 const detailedAkProgressListeners = new Set();
@@ -1707,6 +1709,7 @@ async function loadDetailedAkModel() {
       object.scale.set(scaleX, lengthScale, lengthScale);
       object.position.set(-center.x * scaleX, -center.y * lengthScale, -center.z * lengthScale);
       object.rotation.y = Math.PI;
+      object.userData.isDetailedAk = true;
       object.traverse((child) => {
         if (!child.isMesh) return;
         child.frustumCulled = false;
@@ -1779,13 +1782,12 @@ async function loadDetailedAkSource() {
   const assetMap = new Map(assets.map((asset) => [asset.filename, asset.blob]));
   let materialText = await assetMap.get('123456.mtl').text();
   const objectText = await assetMap.get('ak-47.obj').text();
-  const textureUrls = new Map();
+  setDetailedAkPhase('materials');
 
   DETAILED_AK_ASSETS.filter((asset) => asset.type === 'blob').forEach((asset) => {
     const blob = assetMap.get(asset.filename);
     if (!blob) return;
     const url = URL.createObjectURL(blob);
-    textureUrls.set(asset.filename, url);
     materialText = materialText.replaceAll(asset.filename, url);
   });
 
@@ -1793,6 +1795,9 @@ async function loadDetailedAkSource() {
   const materialLoader = new MTLLoader(textureManager);
   const materials = materialLoader.parse(materialText, '');
   await preloadDetailedAkMaterials(materials, textureManager);
+  tuneDetailedAkMaterials(materials);
+  setDetailedAkPhase('geometry');
+  await nextFrame();
   const objectLoader = new OBJLoader();
   objectLoader.setMaterials(materials);
   return objectLoader.parse(objectText);
@@ -1865,6 +1870,9 @@ function preloadDetailedAkMaterials(materials, manager) {
     };
     const timeout = window.setTimeout(finish, 8000);
     manager.onLoad = finish;
+    manager.onProgress = (url, loaded, total) => {
+      setDetailedAkPhase('materials', total > 0 ? loaded / total : 0);
+    };
     manager.onError = (url) => console.warn('AK texture decode failed.', url);
     materials.preload();
     queueMicrotask(() => {
@@ -1873,12 +1881,31 @@ function preloadDetailedAkMaterials(materials, manager) {
   });
 }
 
+function tuneDetailedAkMaterials(materials) {
+  const maxAnisotropy = renderer?.capabilities?.getMaxAnisotropy?.() || 1;
+  Object.values(materials.materials || {}).forEach((material) => {
+    if (material.map) {
+      material.map.colorSpace = THREE.SRGBColorSpace;
+      material.map.anisotropy = Math.min(8, maxAnisotropy);
+    }
+    material.needsUpdate = true;
+  });
+}
+
 function resetDetailedAkProgress() {
   detailedAkProgress.loadedBytes = 0;
   detailedAkProgress.totalBytes = 0;
   detailedAkProgress.completeAssets = 0;
   detailedAkProgress.activeAsset = '';
+  detailedAkProgress.phase = 'download';
+  detailedAkProgress.phaseProgress = 0;
   detailedAkProgress.assetStates.clear();
+  emitDetailedAkProgress();
+}
+
+function setDetailedAkPhase(phase, phaseProgress = 0) {
+  detailedAkProgress.phase = phase;
+  detailedAkProgress.phaseProgress = THREE.MathUtils.clamp(phaseProgress, 0, 1);
   emitDetailedAkProgress();
 }
 
@@ -1895,6 +1922,8 @@ function getDetailedAkProgressSnapshot() {
     completeAssets,
     totalAssets: DETAILED_AK_ASSETS.length,
     activeAsset,
+    phase: detailedAkProgress.phase,
+    phaseProgress: detailedAkProgress.phaseProgress,
     assets,
     error: detailedAkLastError
   };
@@ -1903,6 +1932,25 @@ function getDetailedAkProgressSnapshot() {
 function emitDetailedAkProgress() {
   const snapshot = getDetailedAkProgressSnapshot();
   detailedAkProgressListeners.forEach((listener) => listener(snapshot));
+}
+
+function getDetailedAkTransferProgress(snapshot) {
+  if (snapshot.state === 'ready') return 100;
+  if (snapshot.totalBytes > 0) return Math.min(100, Math.round((snapshot.loadedBytes / snapshot.totalBytes) * 100));
+  if (snapshot.totalAssets > 0) return Math.round((snapshot.completeAssets / snapshot.totalAssets) * 100);
+  return 0;
+}
+
+function getDetailedAkProgressLabel(snapshot, progress) {
+  if (snapshot.state === 'ready') return 'AK 高模、材质与贴图已就绪';
+  if (snapshot.state === 'fallback') return '备用模型启用，正在后台重试';
+  if (snapshot.phase === 'materials') return '文件下载完成，正在解码材质与贴图';
+  if (snapshot.phase === 'geometry') return '文件下载完成，正在解析 AK 高模';
+  return `${progress}% · ${snapshot.activeAsset || '正在准备资源队列'}`;
+}
+
+function nextFrame() {
+  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 }
 
 function beginMatchLoading(intent) {
@@ -2001,12 +2049,7 @@ function closeMatchLoading() {
 function updateMatchLoadingUi(snapshot) {
   if (!matchLoading.active) return;
   const assetStates = new Map(snapshot.assets.map((asset) => [asset.filename, asset]));
-  const baseProgress = snapshot.totalBytes > 0
-    ? (snapshot.loadedBytes / snapshot.totalBytes) * 100
-    : 0;
-  const progress = matchLoading.localAssetsReady || snapshot.state === 'ready'
-    ? 100
-    : Math.min(98, Math.round(baseProgress));
+  const progress = matchLoading.localAssetsReady ? 100 : getDetailedAkTransferProgress(snapshot);
   const isLanMatch = matchLoading.intent === 'lan-enter';
   const roomPlayers = lanRoom?.players || [];
   const humans = roomPlayers.filter((player) => !player.isBot);
@@ -2017,9 +2060,10 @@ function updateMatchLoadingUi(snapshot) {
   dom.matchLoadingProgressBar.style.width = `${progress}%`;
   dom.matchLoadingProgress.setAttribute('aria-valuenow', String(progress));
   dom.matchLoadingPercent.textContent = `${progress}%`;
-  dom.matchLoadingDetail.textContent = snapshot.state === 'ready'
-    ? 'AK 高模与材质已就绪'
-    : snapshot.activeAsset || (matchLoading.timedOut ? '已到最长等待时间' : '正在初始化资源');
+  dom.matchLoadingDetail.textContent = matchLoading.timedOut && snapshot.state !== 'ready'
+    ? '已到最长等待时间'
+    : getDetailedAkProgressLabel(snapshot, progress);
+  dom.matchLoadingProgress.classList.toggle('is-processing', snapshot.state === 'loading' && progress >= 100);
 
   dom.matchLoadingAssets.replaceChildren();
   DETAILED_AK_ASSETS.forEach((asset) => {
@@ -2036,7 +2080,7 @@ function updateMatchLoadingUi(snapshot) {
     dom.matchLoadingAssets.append(item);
   });
 
-  let status = '正在准备 AK 高模、材质与贴图...';
+  let status = getDetailedAkProgressLabel(snapshot, progress);
   let canEnter = matchLoading.localAssetsReady;
   if (matchLoading.timedOut && snapshot.state !== 'ready') {
     status = '资源仍在后台同步，当前将使用备用模型进入对局。';
@@ -2065,23 +2109,18 @@ function updateMatchLoadingUi(snapshot) {
 
 function updateHomeAkLoadingUi(snapshot) {
   if (!dom.homeAkLoading || !dom.homeAkLoadingBar || !dom.homeAkLoadingStatus) return;
-  const byteProgress = snapshot.totalBytes > 0
-    ? (snapshot.loadedBytes / snapshot.totalBytes) * 100
-    : 0;
-  const progress = snapshot.state === 'ready'
-    ? 100
-    : Math.min(98, Math.round(byteProgress));
-  const activeAsset = snapshot.activeAsset || '正在初始化资源';
+  const progress = getDetailedAkTransferProgress(snapshot);
 
   dom.homeAkLoading.setAttribute('aria-valuenow', String(progress));
   dom.homeAkLoadingBar.style.width = `${progress}%`;
   dom.homeAkLoading.dataset.state = snapshot.state;
+  dom.homeAkLoading.dataset.phase = snapshot.phase;
   if (snapshot.state === 'ready') {
     dom.homeAkLoadingStatus.textContent = '高模已就绪';
   } else if (snapshot.state === 'fallback') {
     dom.homeAkLoadingStatus.textContent = '备用模型 · 后台重试';
   } else {
-    dom.homeAkLoadingStatus.textContent = `${progress}% · ${activeAsset}`;
+    dom.homeAkLoadingStatus.textContent = getDetailedAkProgressLabel(snapshot, progress);
   }
 }
 
@@ -2139,10 +2178,13 @@ function setWeaponPreviewModel(preview, source) {
   });
   const model = new THREE.Group();
   model.add(sourceClone);
-  model.scale.setScalar(1.1);
+  const isDetailedAk = Boolean(source.userData?.isDetailedAk);
+  model.scale.setScalar(isDetailedAk ? 1.28 : 1.1);
   model.position.set(0.04, -0.02, 0);
   model.rotation.x = -0.12;
   model.rotation.y = -Math.PI / 2 + 0.12;
+  preview.camera.position.set(0, 0.12, isDetailedAk ? 3.8 : 4.2);
+  preview.camera.lookAt(0, 0, 0);
   preview.scene.add(model);
   preview.model = model;
   preview.container.classList.toggle('has-3d-preview', selectedPrimaryWeapon === 'ak');
