@@ -2506,6 +2506,41 @@ body.is-scoped .crosshair {
   font-size: 13px;
 }
 
+.loadout-sync {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(44px, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 0;
+  color: #82909e;
+  font: 750 9px var(--mono);
+}
+
+.loadout-sync > span { color: #98a6b4; white-space: nowrap; }
+.loadout-sync > i { height: 3px; overflow: hidden; background: rgba(244, 247, 251, .13); }
+.loadout-sync > i > b {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--cyan);
+  box-shadow: 0 0 12px rgba(46, 230, 166, .66);
+  transition: width .18s ease;
+}
+.loadout-sync > strong {
+  max-width: 155px;
+  overflow: hidden;
+  color: #b6c3d0;
+  font: 750 9px var(--mono);
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.loadout-sync[data-state="ready"] > span,
+.loadout-sync[data-state="ready"] > strong { color: var(--cyan); }
+.loadout-sync[data-state="fallback"] > span,
+.loadout-sync[data-state="fallback"] > strong { color: var(--amber); }
+
 .weapon-silhouette {
   position: relative;
   width: min(520px, 100%);

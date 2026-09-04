@@ -442,6 +442,9 @@ const dom = {
   homeWeaponType: document.getElementById('home-weapon-type'),
   homeWeaponCaliber: document.getElementById('home-weapon-caliber'),
   homeWeaponMode: document.getElementById('home-weapon-mode'),
+  homeAkLoading: document.getElementById('home-ak-loading'),
+  homeAkLoadingBar: document.getElementById('home-ak-loading-bar'),
+  homeAkLoadingStatus: document.getElementById('home-ak-loading-status'),
   missionHits: document.getElementById('mission-hits'),
   rangeLeaderboardList: document.getElementById('range-leaderboard-list'),
   rangeLeaderboardStatus: document.getElementById('range-leaderboard-status'),
@@ -808,8 +811,10 @@ function init() {
     attrs: { 'aria-hidden': 'true' }
   });
   initScene();
-  ensureDetailedAkModel();
   initUi();
+  detailedAkProgressListeners.add(updateHomeAkLoadingUi);
+  updateHomeAkLoadingUi(getDetailedAkProgressSnapshot());
+  ensureDetailedAkModel();
   renderMenuStats();
   setOverlay('mode');
   if (getInvitedRoomCode()) {
@@ -2056,6 +2061,28 @@ function updateMatchLoadingUi(snapshot) {
   dom.matchLoadingEnter.hidden = !canEnter;
   dom.matchLoadingEnter.disabled = !canEnter;
   dom.matchLoadingEnter.textContent = isLanMatch ? '进入对枪' : matchLoading.intent === 'bot-start' ? '进入人机' : '进入靶场';
+}
+
+function updateHomeAkLoadingUi(snapshot) {
+  if (!dom.homeAkLoading || !dom.homeAkLoadingBar || !dom.homeAkLoadingStatus) return;
+  const byteProgress = snapshot.totalBytes > 0
+    ? (snapshot.loadedBytes / snapshot.totalBytes) * 100
+    : 0;
+  const progress = snapshot.state === 'ready'
+    ? 100
+    : Math.min(98, Math.round(byteProgress));
+  const activeAsset = snapshot.activeAsset || '正在初始化资源';
+
+  dom.homeAkLoading.setAttribute('aria-valuenow', String(progress));
+  dom.homeAkLoadingBar.style.width = `${progress}%`;
+  dom.homeAkLoading.dataset.state = snapshot.state;
+  if (snapshot.state === 'ready') {
+    dom.homeAkLoadingStatus.textContent = '高模已就绪';
+  } else if (snapshot.state === 'fallback') {
+    dom.homeAkLoadingStatus.textContent = '备用模型 · 后台重试';
+  } else {
+    dom.homeAkLoadingStatus.textContent = `${progress}% · ${activeAsset}`;
+  }
 }
 
 function waitForDetailedAkRetry(delay) {
