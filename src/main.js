@@ -312,8 +312,8 @@ const SNIPER_HIP_POSITION = new THREE.Vector3(0.72, -0.53, -1.14);
 const SNIPER_HIP_ROTATION = new THREE.Euler(-0.04, -0.1, 0.014);
 const SNIPER_ADS_POSITION = SNIPER_HIP_POSITION.clone();
 const SNIPER_ADS_ROTATION = SNIPER_HIP_ROTATION.clone();
-const KNIFE_POSITION = new THREE.Vector3(0.84, -0.39, -1.48);
-const KNIFE_ROTATION = new THREE.Euler(-0.16, -0.48, 0.16);
+const KNIFE_POSITION = new THREE.Vector3(0.72, -0.44, -1.42);
+const KNIFE_ROTATION = new THREE.Euler(-0.1, -0.42, -0.34);
 const SHOTGUN_HIP_POSITION = new THREE.Vector3(0.5, -0.42, -0.88);
 const SHOTGUN_ADS_POSITION = new THREE.Vector3(0.015, -0.235, -0.86);
 const SHOTGUN_HIP_ROTATION = new THREE.Euler(-0.045, -0.08, 0.018);
@@ -1933,7 +1933,7 @@ async function loadDetailedAwpModel() {
 
       // This Blender export uses +X for the muzzle and -Z for the top of the rifle.
       // Map those axes directly to the viewmodel's forward (-Z) and upward (+Y) directions.
-      const scale = 1.92 / size.x;
+      const scale = 2.35 / size.x;
       object.scale.setScalar(scale);
       object.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
         new THREE.Vector3(0, 0, -1),
@@ -2061,11 +2061,16 @@ async function loadDetailedKnifeModel() {
       const center = bounds.getCenter(new THREE.Vector3());
       if (!size.z || !size.y) throw new Error('Survival Knife model has invalid bounds');
 
-      // This source is long on Z. Center it before the existing viewmodel pose is applied.
+      // The Blender source is a flat knife: X is the blade normal and -Z runs toward the tip.
+      // Face the blade toward the camera and point its tip left-forward from the right-hand grip.
       const scale = 1.18 / size.z;
       object.scale.setScalar(scale);
-      object.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
-      object.rotation.y = Math.PI;
+      object.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+        new THREE.Vector3(0, 0, -1),
+        new THREE.Vector3(0, 1, 0),
+        new THREE.Vector3(1, 0, 0)
+      ));
+      object.position.copy(center.clone().multiplyScalar(-scale).applyQuaternion(object.quaternion));
       object.userData.isDetailedKnife = true;
       object.traverse((child) => {
         if (!child.isMesh) return;
@@ -7561,7 +7566,7 @@ function animateWeapon(delta, now) {
     if (now < knifeSpinUntil) {
       const progress = THREE.MathUtils.clamp((now - knifeSpinStartedAt) / KNIFE_SPIN_DURATION, 0, 1);
       const spin = 1 - Math.pow(1 - progress, 3);
-      weaponGroup.rotation.z += spin * Math.PI * 2;
+      weaponGroup.rotation.z -= spin * Math.PI * 2;
       weaponGroup.rotation.y += Math.sin(progress * Math.PI) * 0.56;
       weaponGroup.position.y += Math.sin(progress * Math.PI) * 0.12;
     }
