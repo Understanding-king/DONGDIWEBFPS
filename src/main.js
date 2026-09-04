@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import {
+  ArrowLeft,
   Bot,
   Boxes,
   Check,
@@ -258,9 +259,19 @@ const WEAPON_ADS_POSITION = new THREE.Vector3(-0.009, -0.221, -0.86);
 const WEAPON_HIP_ROTATION = new THREE.Euler(-0.03, -0.09, 0.02);
 const WEAPON_ADS_ROTATION = new THREE.Euler(-0.018, 0, 0);
 const DETAILED_AK_ASSET_PATH = '/models/ak-47/';
+const DETAILED_AK_ASSETS = [
+  { filename: 'ak-47.obj', label: 'AK-47 高模', type: 'text' },
+  { filename: '123456.mtl', label: '材质定义', type: 'text' },
+  { filename: '123456_wire_115115115_color.png', label: '木纹与金属贴图', type: 'blob' },
+  { filename: '123456_wire_115115115_metalness.png', label: '金属度贴图', type: 'blob' },
+  { filename: '123456_wire_115115115_nmap.png', label: '法线贴图', type: 'blob' },
+  { filename: '123456_wire_115115115_rough.png', label: '粗糙度贴图', type: 'blob' }
+];
 const DETAILED_AK_ATTEMPT_DELAYS = [0, 1500, 5000];
 const DETAILED_AK_REQUEST_TIMEOUT_MS = 45000;
 const DETAILED_AK_BACKGROUND_RETRY_MS = 30000;
+const MATCH_LOADING_MAX_MS = 18000;
+const LAN_LOADING_MAX_MS = 22000;
 // This is the rear-sight groove, not the top edge of the receiver.
 const AK_REAR_SIGHT_REFERENCE_FROM_TOP = 0.03;
 const SNIPER_HIP_POSITION = new THREE.Vector3(0.45, -0.41, -0.96);
@@ -373,6 +384,14 @@ const dom = {
   damageVignette: document.getElementById('damage-vignette'),
   deathFlash: document.getElementById('death-flash'),
   deathBlood: document.getElementById('death-blood'),
+  matchLoading: document.getElementById('match-loading'),
+  matchLoadingStatus: document.getElementById('match-loading-status'),
+  matchLoadingProgress: document.querySelector('.match-loading-progress'),
+  matchLoadingProgressBar: document.getElementById('match-loading-progress-bar'),
+  matchLoadingPercent: document.getElementById('match-loading-percent'),
+  matchLoadingDetail: document.getElementById('match-loading-detail'),
+  matchLoadingAssets: document.getElementById('match-loading-assets'),
+  matchLoadingEnter: document.getElementById('match-loading-enter'),
   touchJoystick: document.getElementById('touch-joystick'),
   touchJoystickKnob: document.getElementById('touch-joystick-knob'),
   startPanel: document.getElementById('start-panel'),
@@ -559,6 +578,16 @@ const weaponPreviews = [];
 let previewAkSource = null;
 let detailedAkLoadState = 'idle';
 let detailedAkRetryTimer = null;
+let detailedAkLoadPromise = null;
+let detailedAkLastError = null;
+const detailedAkProgress = {
+  loadedBytes: 0,
+  totalBytes: 0,
+  completeAssets: 0,
+  activeAsset: '',
+  assetStates: new Map()
+};
+const detailedAkProgressListeners = new Set();
 let knifeGroup;
 let icecreamGroup;
 let opponentGroup;
@@ -573,6 +602,7 @@ let pitch = 0;
 let appMode = 'menu';
 let state = 'idle';
 let lockIntent = null;
+let matchLoadingLockRetryIntent = '';
 let audioContext = null;
 let shotNoiseBuffer = null;
 let audioMasterGain = null;
@@ -641,6 +671,18 @@ let feedTimer = 0;
 let killFeedTimer = 0;
 let killImpactTimer = 0;
 const killFeedEntries = [];
+const matchLoading = {
+  active: false,
+  intent: '',
+  startedAt: 0,
+  deadlineAt: 0,
+  localAssetsReady: false,
+  serverStarted: false,
+  assetsReadySent: false,
+  timedOut: false,
+  timeoutId: 0,
+  tickId: 0
+};
 
 const duel = {
   active: false,
@@ -759,7 +801,7 @@ init();
 function init() {
   createIcons({
     icons: {
-      Bot, Boxes, Check, Cloud, Coins, Copy, Crosshair, House, LockKeyhole, LogIn,
+      ArrowLeft, Bot, Boxes, Check, Cloud, Coins, Copy, Crosshair, House, LockKeyhole, LogIn,
       MapPin, PackageOpen, Plus, Play, RefreshCw, Radio, Send, ShieldCheck, ShoppingBag, Swords, Target,
       Trophy, UserPlus, UserRound, Users, Wifi, X, Zap
     },
@@ -1628,17 +1670,26 @@ function buildWeapon() {
   camera.add(weaponGroup);
   camera.add(icecreamGroup);
   syncWeaponModel();
-  window.setTimeout(() => loadDetailedAkModel(), 80);
+}
+
+function ensureDetailedAkModel() {
+  if (detailedAkLoadState === 'ready') return Promise.resolve(true);
+  if (detailedAkLoadPromise) return detailedAkLoadPromise;
+  detailedAkLoadPromise = loadDetailedAkModel().finally(() => {
+    detailedAkLoadPromise = null;
+  });
+  return detailedAkLoadPromise;
 }
 
 async function loadDetailedAkModel() {
-  if (!weaponGroup || !camera || detailedAkLoadState === 'loading' || detailedAkLoadState === 'ready') return;
+  if (!weaponGroup || !camera || detailedAkLoadState === 'ready') return detailedAkLoadState === 'ready';
   detailedAkLoadState = 'loading';
   let lastError = null;
 
   for (const [attemptIndex, delay] of DETAILED_AK_ATTEMPT_DELAYS.entries()) {
     if (delay) await waitForDetailedAkRetry(delay);
     try {
+      resetDetailedAkProgress();
       const object = await loadDetailedAkSource();
       const bounds = new THREE.Box3().setFromObject(object);
       const size = bounds.getSize(new THREE.Vector3());
@@ -1652,7 +1703,7 @@ async function loadDetailedAkModel() {
       object.rotation.y = Math.PI;
       object.traverse((child) => {
         if (!child.isMesh) return;
-        child.frustumCulled = true;
+        child.frustumCulled = false;
         child.castShadow = false;
         child.receiveShadow = false;
         if (child.material) {
@@ -1697,7 +1748,9 @@ async function loadDetailedAkModel() {
       previewAkSource = object;
       weaponPreviews.forEach((preview) => setWeaponPreviewModel(preview, object));
       detailedAkLoadState = 'ready';
-      return;
+      detailedAkLastError = null;
+      emitDetailedAkProgress();
+      return true;
     } catch (error) {
       lastError = error;
       console.warn(`Detailed AK model load attempt ${attemptIndex + 1} failed.`, error);
@@ -1705,40 +1758,303 @@ async function loadDetailedAkModel() {
   }
 
   detailedAkLoadState = 'fallback';
+  detailedAkLastError = lastError;
   console.warn('Detailed AK model is unavailable for now; using the built-in model and retrying in the background.', lastError);
   window.clearTimeout(detailedAkRetryTimer);
   detailedAkRetryTimer = window.setTimeout(() => {
     detailedAkLoadState = 'idle';
-    loadDetailedAkModel();
+    ensureDetailedAkModel();
   }, DETAILED_AK_BACKGROUND_RETRY_MS);
+  return false;
 }
 
 async function loadDetailedAkSource() {
-  const [materialText, objectText] = await Promise.all([
-    fetchDetailedAkText('123456.mtl'),
-    fetchDetailedAkText('ak-47.obj')
-  ]);
-  const materialLoader = new MTLLoader();
-  const materials = materialLoader.parse(materialText, DETAILED_AK_ASSET_PATH);
-  materials.preload();
+  const assets = await Promise.all(DETAILED_AK_ASSETS.map(fetchDetailedAkAsset));
+  const assetMap = new Map(assets.map((asset) => [asset.filename, asset.blob]));
+  let materialText = await assetMap.get('123456.mtl').text();
+  const objectText = await assetMap.get('ak-47.obj').text();
+  const textureUrls = new Map();
+
+  DETAILED_AK_ASSETS.filter((asset) => asset.type === 'blob').forEach((asset) => {
+    const blob = assetMap.get(asset.filename);
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    textureUrls.set(asset.filename, url);
+    materialText = materialText.replaceAll(asset.filename, url);
+  });
+
+  const textureManager = new THREE.LoadingManager();
+  const materialLoader = new MTLLoader(textureManager);
+  const materials = materialLoader.parse(materialText, '');
+  await preloadDetailedAkMaterials(materials, textureManager);
   const objectLoader = new OBJLoader();
   objectLoader.setMaterials(materials);
   return objectLoader.parse(objectText);
 }
 
-async function fetchDetailedAkText(filename) {
+async function fetchDetailedAkAsset(asset) {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), DETAILED_AK_REQUEST_TIMEOUT_MS);
+  const state = {
+    filename: asset.filename,
+    label: asset.label,
+    loadedBytes: 0,
+    totalBytes: 0,
+    status: 'loading'
+  };
+  detailedAkProgress.assetStates.set(asset.filename, state);
+  emitDetailedAkProgress();
   try {
-    const response = await fetch(`${DETAILED_AK_ASSET_PATH}${filename}`, {
+    const response = await fetch(`${DETAILED_AK_ASSET_PATH}${asset.filename}`, {
       cache: 'force-cache',
       signal: controller.signal
     });
-    if (!response.ok) throw new Error(`AK asset request failed: ${filename} (${response.status})`);
-    return await response.text();
+    if (!response.ok) throw new Error(`AK asset request failed: ${asset.filename} (${response.status})`);
+    const contentLength = Number(response.headers.get('content-length')) || 0;
+    state.totalBytes = contentLength;
+
+    if (!response.body) {
+      const blob = await response.blob();
+      state.loadedBytes = blob.size;
+      state.totalBytes ||= blob.size;
+      state.status = 'ready';
+      emitDetailedAkProgress();
+      return { filename: asset.filename, blob };
+    }
+
+    const reader = response.body.getReader();
+    const chunks = [];
+    let received = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.byteLength;
+      state.loadedBytes = received;
+      emitDetailedAkProgress();
+    }
+    const blob = new Blob(chunks, { type: response.headers.get('content-type') || '' });
+    state.loadedBytes = blob.size;
+    state.totalBytes ||= blob.size;
+    state.status = 'ready';
+    emitDetailedAkProgress();
+    return { filename: asset.filename, blob };
+  } catch (error) {
+    state.status = 'error';
+    emitDetailedAkProgress();
+    throw error;
   } finally {
     window.clearTimeout(timeout);
   }
+}
+
+function preloadDetailedAkMaterials(materials, manager) {
+  return new Promise((resolve) => {
+    let completed = false;
+    const finish = () => {
+      if (completed) return;
+      completed = true;
+      window.clearTimeout(timeout);
+      resolve();
+    };
+    const timeout = window.setTimeout(finish, 8000);
+    manager.onLoad = finish;
+    manager.onError = (url) => console.warn('AK texture decode failed.', url);
+    materials.preload();
+    queueMicrotask(() => {
+      if (!manager.itemsTotal || manager.itemsLoaded >= manager.itemsTotal) finish();
+    });
+  });
+}
+
+function resetDetailedAkProgress() {
+  detailedAkProgress.loadedBytes = 0;
+  detailedAkProgress.totalBytes = 0;
+  detailedAkProgress.completeAssets = 0;
+  detailedAkProgress.activeAsset = '';
+  detailedAkProgress.assetStates.clear();
+  emitDetailedAkProgress();
+}
+
+function getDetailedAkProgressSnapshot() {
+  const assets = Array.from(detailedAkProgress.assetStates.values()).map((asset) => ({ ...asset }));
+  const loadedBytes = assets.reduce((sum, asset) => sum + asset.loadedBytes, 0);
+  const totalBytes = assets.reduce((sum, asset) => sum + asset.totalBytes, 0);
+  const completeAssets = assets.filter((asset) => asset.status === 'ready').length;
+  const activeAsset = assets.find((asset) => asset.status === 'loading')?.label || '';
+  return {
+    state: detailedAkLoadState,
+    loadedBytes,
+    totalBytes,
+    completeAssets,
+    totalAssets: DETAILED_AK_ASSETS.length,
+    activeAsset,
+    assets,
+    error: detailedAkLastError
+  };
+}
+
+function emitDetailedAkProgress() {
+  const snapshot = getDetailedAkProgressSnapshot();
+  detailedAkProgressListeners.forEach((listener) => listener(snapshot));
+}
+
+function beginMatchLoading(intent) {
+  const isLanMatch = intent === 'lan-enter';
+  if (isLanMatch && !lanRoom?.started && !lanRoom?.loading) {
+    setOverlay('lan');
+    dom.lanStatus.textContent = '双方都准备后，会先同步对局资源。';
+    return;
+  }
+  if (matchLoading.active) {
+    if (matchLoading.intent === intent) updateMatchLoadingUi(getDetailedAkProgressSnapshot());
+    return;
+  }
+
+  const now = Date.now();
+  matchLoading.active = true;
+  matchLoading.intent = intent;
+  matchLoading.startedAt = now;
+  matchLoading.deadlineAt = now + (isLanMatch ? LAN_LOADING_MAX_MS : MATCH_LOADING_MAX_MS);
+  matchLoading.localAssetsReady = detailedAkLoadState === 'ready';
+  matchLoading.serverStarted = Boolean(isLanMatch && lanRoom?.started);
+  matchLoading.assetsReadySent = false;
+  matchLoading.timedOut = false;
+
+  setOverlay(null);
+  dom.matchLoading.hidden = false;
+  document.body.classList.add('is-match-loading');
+  detailedAkProgressListeners.add(updateMatchLoadingUi);
+  updateMatchLoadingUi(getDetailedAkProgressSnapshot());
+
+  matchLoading.timeoutId = window.setTimeout(() => {
+    if (!matchLoading.active || matchLoading.intent !== intent) return;
+    matchLoading.timedOut = true;
+    markMatchAssetsReady();
+  }, isLanMatch ? LAN_LOADING_MAX_MS : MATCH_LOADING_MAX_MS);
+  matchLoading.tickId = window.setInterval(() => updateMatchLoadingUi(getDetailedAkProgressSnapshot()), 250);
+
+  if (matchLoading.localAssetsReady) {
+    markMatchAssetsReady();
+    return;
+  }
+
+  ensureDetailedAkModel()
+    .then(() => {
+      if (!matchLoading.active || matchLoading.intent !== intent) return;
+      markMatchAssetsReady();
+    })
+    .catch(() => {
+      if (!matchLoading.active || matchLoading.intent !== intent) return;
+      matchLoading.timedOut = true;
+      markMatchAssetsReady();
+    });
+}
+
+function markMatchAssetsReady() {
+  if (!matchLoading.active) return;
+  matchLoading.localAssetsReady = true;
+  if (matchLoading.intent === 'lan-enter' && !matchLoading.assetsReadySent) {
+    matchLoading.assetsReadySent = true;
+    sendLan({ type: 'assets-ready' });
+  }
+  updateMatchLoadingUi(getDetailedAkProgressSnapshot());
+}
+
+function continueMatchLoading() {
+  if (!matchLoading.active || !matchLoading.localAssetsReady) return;
+  if (matchLoading.intent === 'lan-enter' && !lanRoom?.started && !matchLoading.serverStarted) {
+    updateMatchLoadingUi(getDetailedAkProgressSnapshot());
+    return;
+  }
+
+  const intent = matchLoading.intent;
+  matchLoadingLockRetryIntent = intent;
+  closeMatchLoading();
+  requestGameLock(intent);
+}
+
+function closeMatchLoading() {
+  window.clearTimeout(matchLoading.timeoutId);
+  window.clearInterval(matchLoading.tickId);
+  detailedAkProgressListeners.delete(updateMatchLoadingUi);
+  matchLoading.active = false;
+  matchLoading.intent = '';
+  matchLoading.startedAt = 0;
+  matchLoading.deadlineAt = 0;
+  matchLoading.localAssetsReady = false;
+  matchLoading.serverStarted = false;
+  matchLoading.assetsReadySent = false;
+  matchLoading.timedOut = false;
+  matchLoading.timeoutId = 0;
+  matchLoading.tickId = 0;
+  dom.matchLoading.hidden = true;
+  document.body.classList.remove('is-match-loading');
+}
+
+function updateMatchLoadingUi(snapshot) {
+  if (!matchLoading.active) return;
+  const assetStates = new Map(snapshot.assets.map((asset) => [asset.filename, asset]));
+  const baseProgress = snapshot.totalBytes > 0
+    ? (snapshot.loadedBytes / snapshot.totalBytes) * 100
+    : 0;
+  const progress = matchLoading.localAssetsReady || snapshot.state === 'ready'
+    ? 100
+    : Math.min(98, Math.round(baseProgress));
+  const isLanMatch = matchLoading.intent === 'lan-enter';
+  const roomPlayers = lanRoom?.players || [];
+  const humans = roomPlayers.filter((player) => !player.isBot);
+  const readyPlayers = roomPlayers.filter((player) => player.isBot || player.assetsReady).length;
+  const serverDeadline = Number(lanRoom?.loadingDeadlineAt) || 0;
+  const serverRemaining = serverDeadline ? Math.max(0, Math.ceil((serverDeadline - Date.now()) / 1000)) : 0;
+
+  dom.matchLoadingProgressBar.style.width = `${progress}%`;
+  dom.matchLoadingProgress.setAttribute('aria-valuenow', String(progress));
+  dom.matchLoadingPercent.textContent = `${progress}%`;
+  dom.matchLoadingDetail.textContent = snapshot.state === 'ready'
+    ? 'AK 高模与材质已就绪'
+    : snapshot.activeAsset || (matchLoading.timedOut ? '已到最长等待时间' : '正在初始化资源');
+
+  dom.matchLoadingAssets.replaceChildren();
+  DETAILED_AK_ASSETS.forEach((asset) => {
+    const item = document.createElement('div');
+    const state = assetStates.get(asset.filename);
+    const label = document.createElement('span');
+    const name = document.createElement('strong');
+    label.textContent = state?.status === 'ready' ? 'READY' : state?.status === 'error' ? 'OPTIONAL' : 'SYNCING';
+    name.textContent = asset.label;
+    item.className = 'match-loading-asset';
+    item.classList.toggle('is-ready', state?.status === 'ready');
+    item.classList.toggle('is-error', state?.status === 'error');
+    item.append(label, name);
+    dom.matchLoadingAssets.append(item);
+  });
+
+  let status = '正在准备 AK 高模、材质与贴图...';
+  let canEnter = matchLoading.localAssetsReady;
+  if (matchLoading.timedOut && snapshot.state !== 'ready') {
+    status = '资源仍在后台同步，当前将使用备用模型进入对局。';
+  } else if (matchLoading.localAssetsReady) {
+    status = '对局资源已准备完成。';
+  }
+
+  if (isLanMatch) {
+    canEnter = matchLoading.localAssetsReady && (Boolean(lanRoom?.started) || matchLoading.serverStarted);
+    if (!matchLoading.localAssetsReady) {
+      status = serverRemaining
+        ? `正在同步本机资源，房间将在 ${serverRemaining} 秒后统一开局。`
+        : '正在同步本机资源...';
+    } else if (!lanRoom?.started && !matchLoading.serverStarted) {
+      status = `${readyPlayers} / ${roomPlayers.length || humans.length} 位玩家已同步，等待全员或 ${serverRemaining} 秒后开局。`;
+    } else {
+      status = '全员同步完成，对局已开启。点击进入。';
+    }
+  }
+
+  dom.matchLoadingStatus.textContent = status;
+  dom.matchLoadingEnter.hidden = !canEnter;
+  dom.matchLoadingEnter.disabled = !canEnter;
+  dom.matchLoadingEnter.textContent = isLanMatch ? '进入对枪' : matchLoading.intent === 'bot-start' ? '进入人机' : '进入靶场';
 }
 
 function waitForDetailedAkRetry(delay) {
@@ -2514,9 +2830,9 @@ function initUi() {
   dom.startBackButton.addEventListener('click', showMainMenu);
   dom.lanBackButton.addEventListener('click', showMainMenu);
   dom.botBackButton.addEventListener('click', showMainMenu);
-  dom.startButton.addEventListener('click', () => requestGameLock('range-start'));
+  dom.startButton.addEventListener('click', () => beginMatchLoading('range-start'));
   dom.resumeButton.addEventListener('click', resumeCurrentMode);
-  dom.retryButton.addEventListener('click', () => requestGameLock('range-start'));
+  dom.retryButton.addEventListener('click', () => beginMatchLoading('range-start'));
   dom.menuButton.addEventListener('click', showMainMenu);
   dom.quitButton.addEventListener('click', quitCurrentMode);
   dom.resetHistory.addEventListener('click', resetHistory);
@@ -2537,11 +2853,12 @@ function initUi() {
   });
   dom.addBotButton.addEventListener('click', addLanBot);
   dom.readyButton.addEventListener('click', toggleLanReady);
-  dom.lanEnterButton.addEventListener('click', () => requestGameLock('lan-enter'));
+  dom.lanEnterButton.addEventListener('click', () => beginMatchLoading('lan-enter'));
   dom.leaveRoomButton.addEventListener('click', leaveLanRoom);
-  dom.startBotButton.addEventListener('click', () => requestGameLock('bot-start'));
+  dom.startBotButton.addEventListener('click', () => beginMatchLoading('bot-start'));
   dom.duelRetryButton.addEventListener('click', retryDuel);
   dom.duelMenuButton.addEventListener('click', showMainMenu);
+  dom.matchLoadingEnter?.addEventListener('click', continueMatchLoading);
   dom.mobileControlsToggle.addEventListener('click', toggleMobileControls);
   dom.cheatPanel?.addEventListener('change', (event) => {
     const input = event.target.closest('[data-cheat]');
@@ -2631,7 +2948,7 @@ function initLobbyUi() {
     botDifficulty = 'normal';
     setDuelMap('park');
     openBotPanel();
-    requestGameLock('bot-start');
+    beginMatchLoading('bot-start');
   });
 
   document.querySelectorAll('[data-equip-weapon]').forEach((button) => {
@@ -3249,6 +3566,7 @@ function openLanPanel() {
   }
   syncLanUi();
   syncCheatUi();
+  if (lanRoom?.loading) beginMatchLoading('lan-enter');
   const invitedRoom = getInvitedRoomCode();
   if (invitedRoom) {
     dom.roomCodeInput.value = invitedRoom;
@@ -3444,6 +3762,7 @@ function requestGameLock(intent) {
   if (!dom.canvas.requestPointerLock) {
     dom.statusLine.textContent = '当前浏览器不支持鼠标锁定，建议使用新版 Chrome 或 Edge。';
     lockIntent = null;
+    restoreMatchLoadingAfterLockFailure(intent);
     return;
   }
 
@@ -3471,13 +3790,23 @@ function handlePointerLockChange() {
 }
 
 function handlePointerLockError() {
+  const failedIntent = lockIntent || matchLoadingLockRetryIntent;
   lockIntent = null;
   dom.statusLine.textContent = '鼠标锁定失败。请点击画面后再试一次，或检查浏览器权限。';
+  restoreMatchLoadingAfterLockFailure(failedIntent);
+}
+
+function restoreMatchLoadingAfterLockFailure(intent) {
+  if (!matchLoadingLockRetryIntent || matchLoadingLockRetryIntent !== intent) return;
+  matchLoadingLockRetryIntent = '';
+  beginMatchLoading(intent);
+  dom.matchLoadingStatus.textContent = '浏览器未允许鼠标锁定，请再次点击进入对局。';
 }
 
 function runLockIntent() {
   const intent = lockIntent;
   lockIntent = null;
+  matchLoadingLockRetryIntent = '';
   if (intent === 'range-start') {
     beginRun();
     return;
@@ -5680,14 +6009,29 @@ function handleLanMessage(payload) {
     dom.lanStatus.textContent = '已加入房间，等待玩家或人机。';
     return;
   }
+  if (message.type === 'match-loading') {
+    lanRoom = message.room;
+    lanCanEnter = false;
+    if (lanRoom?.map) applyRoomDuelMap(lanRoom.map);
+    applyLanRoom(lanRoom);
+    syncLanUi();
+    beginMatchLoading('lan-enter');
+    return;
+  }
   if (message.type === 'room-update' || message.type === 'match-start') {
     lanRoom = message.room;
     if (lanRoom?.map) applyRoomDuelMap(lanRoom.map);
     applyLanRoom(lanRoom);
     syncLanUi();
+    if (lanRoom?.loading && !matchLoading.active) beginMatchLoading('lan-enter');
     if (lanRoom?.started) {
       lanCanEnter = true;
-      dom.lanEnterButton.hidden = false;
+      if (matchLoading.active && matchLoading.intent === 'lan-enter') {
+        matchLoading.serverStarted = true;
+        updateMatchLoadingUi(getDetailedAkProgressSnapshot());
+      } else {
+        dom.lanEnterButton.hidden = false;
+      }
       dom.lanStatus.textContent = '对局已开始，点击进入对枪。';
     }
     return;
@@ -5921,13 +6265,14 @@ function syncLanUi() {
   const players = lanRoom?.players || [];
   const roomFull = players.length >= (lanRoom?.maxPlayers || 10);
   const isHost = inRoom && lanRoom?.hostId === lanSelfId;
+  const isLoading = Boolean(lanRoom?.loading);
   syncDuelMapUi();
   dom.createRoomButton.disabled = !lanConnected || inRoom;
   dom.joinRoomButton.disabled = !lanConnected || inRoom;
-  dom.addBotButton.disabled = !lanConnected || !isHost || lanRoom?.started || roomFull;
-  dom.readyButton.disabled = !inRoom || lanRoom?.started;
+  dom.addBotButton.disabled = !lanConnected || !isHost || lanRoom?.started || isLoading || roomFull;
+  dom.readyButton.disabled = !inRoom || lanRoom?.started || isLoading;
   dom.leaveRoomButton.disabled = !inRoom;
-  dom.lanEnterButton.hidden = !lanCanEnter;
+  dom.lanEnterButton.hidden = !lanCanEnter || isLoading || (matchLoading.active && matchLoading.intent === 'lan-enter');
   renderRoomInvites();
 
   const self = players.find((player) => player.id === lanSelfId);
@@ -5954,7 +6299,11 @@ function syncLanUi() {
     row.classList.add(team === 'blue' ? 'blue-team' : 'red-team');
     row.classList.toggle('is-bot', Boolean(player.isBot));
     name.textContent = `${teamLabel(team)} ${slotNumber(player.slot)} · ${player.name}${player.id === lanSelfId ? '（你）' : ''}${player.id === lanRoom.hostId ? ' 房主' : ''}`;
-    status.textContent = lanRoom.started ? `${player.kills}:${player.deaths}` : (player.isBot ? '已就位' : (player.ready ? '已准备' : '未准备'));
+    status.textContent = lanRoom.started
+      ? `${player.kills}:${player.deaths}`
+      : isLoading
+        ? (player.isBot || player.assetsReady ? '资源就绪' : '资源同步中')
+        : (player.isBot ? '已就位' : (player.ready ? '已准备' : '未准备'));
     row.append(name, status);
     dom.roomPlayers.append(row);
   });

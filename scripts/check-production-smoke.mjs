@@ -74,6 +74,10 @@ function checkRoomFlow(url) {
         ws.send(JSON.stringify({ type: 'ready' }));
         return;
       }
+      if (message.type === 'match-loading') {
+        ws.send(JSON.stringify({ type: 'assets-ready' }));
+        return;
+      }
       if (message.type === 'match-start') {
         finish(null, { roomCode: message.room?.code || roomCode, playerCount: message.room?.players?.length || 0 });
         return;
@@ -104,6 +108,12 @@ async function checkDisconnectFlow(url) {
 
     host.send({ type: 'ready' });
     guest.send({ type: 'ready' });
+    await Promise.all([
+      host.waitFor((message) => message.type === 'match-loading'),
+      guest.waitFor((message) => message.type === 'match-loading')
+    ]);
+    host.send({ type: 'assets-ready' });
+    guest.send({ type: 'assets-ready' });
     await Promise.all([
       host.waitFor((message) => message.type === 'match-start'),
       guest.waitFor((message) => message.type === 'match-start')

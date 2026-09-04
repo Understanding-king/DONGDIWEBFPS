@@ -24,6 +24,7 @@ const RESPAWN_DELAY = 1800;
 const SPAWN_PROTECTION_MS = 1000;
 const ICECREAM_INVULN_MS = 5000;
 const ICECREAM_COOLDOWN_MS = 18000;
+const LAN_LOADING_MAX_MS = 22000;
 const ROOM_TTL = 1000 * 60 * 30;
 const BOT_MOVE_SPEED = 3.45;
 const BOT_AIM_ERROR = 0.034;
@@ -144,6 +145,7 @@ export function attachLanDuelServer(httpServer) {
   const snapshotTimer = setInterval(() => {
     const now = Date.now();
     for (const room of rooms.values()) {
+      if (room.loading && now >= room.loadingDeadlineAt) startMatch(room);
       if (!room.started) continue;
       updateRoomBots(room, now);
       broadcastRoom(room, makeSnapshot(room));
@@ -189,6 +191,10 @@ function handleMessage(client, payload) {
   }
   if (message.type === 'unready') {
     setReady(client, false);
+    return;
+  }
+  if (message.type === 'assets-ready') {
+    setAssetsReady(client);
     return;
   }
   if (message.type === 'leave-room') {
@@ -248,6 +254,8 @@ function createRoom(client, message) {
     players: new Map(),
     teamKills: { red: 0, blue: 0 },
     started: false,
+    loading: false,
+    loadingDeadlineAt: 0,
     winnerId: '',
     winnerTeam: '',
     botCounter: 0,
@@ -283,7 +291,7 @@ function joinRoom(client, message) {
     send(client, { type: 'error', message: '房间已经满了。' });
     return;
   }
-  if (room.started) {
+  if (room.started || room.loading) {
     send(client, { type: 'error', message: '这局已经开始了，等本局结束再加入。' });
     return;
   }
@@ -306,6 +314,7 @@ function addClientToRoom(room, client, name, slot) {
   client.team = team;
   client.name = name;
   client.ready = false;
+  client.assetsReady = false;
   client.alive = true;
   client.health = PLAYER_HEALTH;
   client.kills = 0;
@@ -331,7 +340,7 @@ function addBotToRoom(client) {
     send(client, { type: 'error', message: '只有房主能添加人机。' });
     return;
   }
-  if (room.started) {
+  if (room.started || room.loading) {
     send(client, { type: 'error', message: '开局后不能再加人机。' });
     return;
   }
@@ -367,6 +376,7 @@ function createBot(room, slot, name) {
     team: teamFromSlot(slot),
     name,
     ready: true,
+    assetsReady: true,
     isBot: true,
     alive: true,
     health: PLAYER_HEALTH,
@@ -401,6 +411,7 @@ function setReady(client, ready) {
   }
 
   client.ready = ready;
+  if (!ready && room.loading) cancelMatchLoading(room);
   room.updatedAt = Date.now();
   broadcastRoomUpdate(room);
   maybeStartMatch(room);
@@ -409,12 +420,47 @@ function setReady(client, ready) {
 function maybeStartMatch(room) {
   const players = Array.from(room.players.values());
   const humans = players.filter((player) => !player.isBot);
-  if (room.started || !humans.length || humans.some((player) => !player.ready)) return;
+  if (room.started || room.loading || !humans.length || humans.some((player) => !player.ready)) return;
   if (!hasBothTeams(players)) {
     broadcastRoom(room, { type: 'match-event', message: '至少需要红蓝两边都有人或 BOT 才能开局。' });
     return;
   }
 
+  room.loading = true;
+  room.loadingDeadlineAt = Date.now() + LAN_LOADING_MAX_MS;
+  players.forEach((player) => {
+    player.assetsReady = Boolean(player.isBot);
+  });
+  room.updatedAt = Date.now();
+  broadcastRoom(room, { type: 'match-loading', room: serializeRoom(room) });
+  broadcastRoomUpdate(room);
+  broadcastRoomList();
+}
+
+function setAssetsReady(client) {
+  const room = getClientRoom(client);
+  if (!room || !room.loading || client.isBot) return;
+
+  client.assetsReady = true;
+  room.updatedAt = Date.now();
+  broadcastRoomUpdate(room);
+  const humans = Array.from(room.players.values()).filter((player) => !player.isBot);
+  if (humans.length && humans.every((player) => player.assetsReady)) startMatch(room);
+}
+
+function cancelMatchLoading(room) {
+  room.loading = false;
+  room.loadingDeadlineAt = 0;
+  room.players.forEach((player) => {
+    player.assetsReady = Boolean(player.isBot);
+  });
+}
+
+function startMatch(room) {
+  if (!room || room.started || !room.loading) return;
+  const players = Array.from(room.players.values());
+  room.loading = false;
+  room.loadingDeadlineAt = 0;
   room.started = true;
   room.winnerId = '';
   room.winnerTeam = '';
@@ -423,6 +469,7 @@ function maybeStartMatch(room) {
   const protectedUntil = Date.now() + SPAWN_PROTECTION_MS;
   players.forEach((player) => {
     player.ready = false;
+    player.assetsReady = false;
     player.alive = true;
     player.health = PLAYER_HEALTH;
     player.kills = 0;
@@ -1069,6 +1116,7 @@ function respawnPlayer(roomCode, playerId) {
 
 function endMatch(room, winnerTeam, winnerId = '') {
   room.started = false;
+  cancelMatchLoading(room);
   room.winnerId = winnerId;
   room.winnerTeam = winnerTeam;
   room.updatedAt = Date.now();
@@ -1097,12 +1145,14 @@ function removeClientFromRoom(client, reason = '') {
   if (!room) return;
 
   const wasStarted = room.started;
+  const wasLoading = room.loading;
   room.players.delete(client.slot);
   room.updatedAt = Date.now();
   client.roomCode = '';
   client.slot = '';
   client.team = 'red';
   client.ready = false;
+  client.assetsReady = false;
 
   const humans = Array.from(room.players.values()).filter((player) => !player.isBot);
   if (!humans.length) {
@@ -1127,6 +1177,7 @@ function removeClientFromRoom(client, reason = '') {
   }
 
   if (!wasStarted) {
+    if (wasLoading) cancelMatchLoading(room);
     room.started = false;
     players.forEach((player) => {
       player.ready = player.isBot;
@@ -1137,6 +1188,7 @@ function removeClientFromRoom(client, reason = '') {
   if (reason) broadcastRoom(room, { type: 'match-event', message: reason });
   broadcastRoomUpdate(room);
   broadcastRoomList();
+  maybeStartMatch(room);
 }
 
 function getClientRoom(client) {
@@ -1158,7 +1210,7 @@ function broadcastRoomList() {
 
 function serializeRoomList() {
   return Array.from(rooms.values())
-    .filter((room) => !room.started && room.players.size < MAX_PLAYERS)
+    .filter((room) => !room.started && !room.loading && room.players.size < MAX_PLAYERS)
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .map((room) => {
       const players = Array.from(room.players.values());
@@ -1192,6 +1244,8 @@ function serializeRoom(room) {
     hostId: room.hostId,
     map: room.map,
     started: room.started,
+    loading: room.loading,
+    loadingDeadlineAt: room.loadingDeadlineAt,
     winnerId: room.winnerId,
     winnerTeam: room.winnerTeam,
     maxKills: MAX_KILLS,
@@ -1209,6 +1263,7 @@ function serializePlayer(player) {
     slot: player.slot,
     team: player.team || teamFromSlot(player.slot),
     ready: player.ready,
+    assetsReady: Boolean(player.assetsReady),
     isBot: Boolean(player.isBot),
     alive: player.alive,
     health: player.health,
