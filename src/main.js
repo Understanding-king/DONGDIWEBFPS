@@ -274,6 +274,8 @@ const MATCH_LOADING_MAX_MS = 36000;
 const LAN_LOADING_MAX_MS = 44000;
 // This is the rear-sight groove, not the top edge of the receiver.
 const AK_REAR_SIGHT_REFERENCE_FROM_TOP = 0.03;
+// Measured from the barrel opening of the imported OBJ, whose forward end is +Z.
+const DETAILED_AK_MUZZLE_RAW_POSITION = new THREE.Vector3(0, 26.09, 179.05);
 const SNIPER_HIP_POSITION = new THREE.Vector3(0.45, -0.41, -0.96);
 const SNIPER_HIP_ROTATION = new THREE.Euler(-0.04, -0.06, 0.014);
 const SNIPER_ADS_POSITION = SNIPER_HIP_POSITION.clone();
@@ -1729,7 +1731,10 @@ async function loadDetailedAkModel() {
         createFlashMaterial()
       );
       muzzleFlash.rotation.x = -Math.PI / 2;
-      muzzleFlash.position.set(0, 0.02, -1.25);
+      muzzleFlash.position.copy(DETAILED_AK_MUZZLE_RAW_POSITION);
+      // The imported OBJ is scaled down substantially. Preserve a visible flash size.
+      muzzleFlash.userData.baseScale = new THREE.Vector3(1 / scaleX, 1 / lengthScale, 1 / lengthScale);
+      muzzleFlash.scale.copy(muzzleFlash.userData.baseScale);
       muzzleFlash.visible = false;
       object.add(muzzleFlash);
 
@@ -1738,7 +1743,7 @@ async function loadDetailedAkModel() {
       object.add(muzzleLight);
 
       const muzzleTip = new THREE.Object3D();
-      muzzleTip.position.set(0, 0.02, -1.28);
+      muzzleTip.position.copy(DETAILED_AK_MUZZLE_RAW_POSITION);
       object.add(muzzleTip);
       const aimPoint = new THREE.Object3D();
       aimPoint.position.set(
@@ -4826,7 +4831,12 @@ function showMuzzleFlash(now) {
   if (muzzleFlash) {
     muzzleFlash.visible = true;
     muzzleFlash.rotation.z = Math.random() * Math.PI * 2;
-    muzzleFlash.scale.setScalar(randomBetween(0.82, 1.28));
+    const flashScale = randomBetween(0.82, 1.28);
+    if (muzzleFlash.userData.baseScale) {
+      muzzleFlash.scale.copy(muzzleFlash.userData.baseScale).multiplyScalar(flashScale);
+    } else {
+      muzzleFlash.scale.setScalar(flashScale);
+    }
   }
   if (muzzleLight) muzzleLight.intensity = 3.8;
 }
