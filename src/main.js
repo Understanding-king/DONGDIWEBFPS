@@ -40,12 +40,14 @@ import {
   getFriends,
   getFriendCode,
   addFriend,
+  getRangeLeaderboard,
   listManagedAccounts,
   removeFriend,
   restoreAccountSession,
   signInWithPassword,
   signOutAccount,
   signUpWithPassword,
+  submitRangeResult,
   updateAccountProfile,
   updateManagedAccount
 } from './services/account-service.js';
@@ -386,6 +388,7 @@ const dom = {
   localProfileForm: document.getElementById('local-profile-form'),
   cloudAccountForm: document.getElementById('cloud-account-form'),
   profileNameInput: document.getElementById('profile-name-input'),
+  accountDisplayName: document.getElementById('account-display-name'),
   accountEmail: document.getElementById('account-email'),
   accountPassword: document.getElementById('account-password'),
   accountMessage: document.getElementById('account-message'),
@@ -421,6 +424,9 @@ const dom = {
   homeWeaponCaliber: document.getElementById('home-weapon-caliber'),
   homeWeaponMode: document.getElementById('home-weapon-mode'),
   missionHits: document.getElementById('mission-hits'),
+  rangeLeaderboardList: document.getElementById('range-leaderboard-list'),
+  rangeLeaderboardStatus: document.getElementById('range-leaderboard-status'),
+  refreshRangeLeaderboard: document.getElementById('refresh-range-leaderboard'),
   inventoryWeaponArt: document.getElementById('inventory-weapon-art'),
   inventoryWeaponName: document.getElementById('inventory-weapon-name'),
   weaponPower: document.getElementById('weapon-power'),
@@ -525,6 +531,10 @@ const storage = readStorage();
 let accountSnapshot = getAccountSnapshot();
 let managedAccounts = [];
 let managedAccountsLoading = false;
+let rangeLeaderboardDuration = 60;
+let rangeLeaderboardEntries = [];
+let rangeLeaderboardLoading = false;
+let rangeLeaderboardStatus = '正在读取排行榜...';
 const duelCheats = {
   aimLock: false,
   magicBullets: false,
@@ -2628,6 +2638,14 @@ function initLobbyUi() {
     button.addEventListener('click', () => equipLobbyWeapon(button.dataset.equipWeapon));
   });
 
+  document.querySelectorAll('[data-range-leaderboard-duration]').forEach((button) => {
+    button.addEventListener('click', () => {
+      rangeLeaderboardDuration = Number(button.dataset.rangeLeaderboardDuration) || 60;
+      refreshRangeLeaderboard();
+    });
+  });
+  dom.refreshRangeLeaderboard?.addEventListener('click', () => refreshRangeLeaderboard());
+
   dom.accountButton?.addEventListener('click', openAccountDialog);
   dom.profileAccountButton?.addEventListener('click', openAccountDialog);
   dom.copyFriendCodeButton?.addEventListener('click', async () => {
@@ -2678,9 +2696,11 @@ function initLobbyUi() {
 
   switchLobbyView('home');
   syncLobbyData();
+  refreshRangeLeaderboard();
   restoreAccountSession().then((snapshot) => {
     accountSnapshot = snapshot;
     syncLobbyData();
+    refreshRangeLeaderboard();
   }).catch(() => {});
 }
 
@@ -2709,6 +2729,9 @@ function openAccountDialog() {
   if (!dom.accountDialog) return;
   accountSnapshot = getAccountSnapshot();
   dom.profileNameInput.value = accountSnapshot.displayName;
+  if (dom.accountDisplayName) {
+    dom.accountDisplayName.value = accountSnapshot.displayName === 'Player' ? '' : accountSnapshot.displayName;
+  }
   dom.accountMessage.textContent = '';
   syncLobbyData();
   if (typeof dom.accountDialog.showModal === 'function') dom.accountDialog.showModal();
@@ -2726,9 +2749,10 @@ async function handleCloudAccountAction(action) {
       const credentials = {
         email: dom.accountEmail.value,
         password: dom.accountPassword.value,
-        displayName: dom.profileNameInput.value
+        displayName: dom.accountDisplayName?.value || ''
       };
       if (credentials.password.length < 8) throw new Error('密码至少需要 8 个字符。');
+      if (action === 'signup' && !credentials.displayName.trim()) throw new Error('注册前请填写游戏昵称。');
       accountSnapshot = action === 'signup'
         ? await signUpWithPassword(credentials)
         : await signInWithPassword(credentials);
@@ -2825,6 +2849,83 @@ function syncLobbyData() {
   syncCheatUi();
   renderFriends();
   renderRoomInvites();
+}
+
+async function refreshRangeLeaderboard() {
+  if (!dom.rangeLeaderboardList || rangeLeaderboardLoading) return;
+  rangeLeaderboardLoading = true;
+  rangeLeaderboardStatus = '正在读取排行榜...';
+  renderRangeLeaderboard();
+  try {
+    rangeLeaderboardEntries = await getRangeLeaderboard(rangeLeaderboardDuration);
+    const currentEntry = rangeLeaderboardEntries.find((entry) => entry.isCurrentPlayer);
+    rangeLeaderboardStatus = currentEntry
+      ? `你的 ${rangeLeaderboardDuration} 秒最好成绩当前第 ${currentEntry.rank} 名。`
+      : accountSnapshot.signedIn
+        ? `完成一轮 ${rangeLeaderboardDuration} 秒训练即可进入榜单。`
+        : `登录后完成 ${rangeLeaderboardDuration} 秒训练即可上榜。`;
+  } catch (error) {
+    rangeLeaderboardEntries = [];
+    const message = String(error?.message || '');
+    rangeLeaderboardStatus = message.includes('get_range_leaderboard') || message.includes('Could not find')
+      ? '排行榜正在等待云端启用。'
+      : '排行榜暂时无法连接。';
+    console.warn('Range leaderboard unavailable.', error);
+  } finally {
+    rangeLeaderboardLoading = false;
+    renderRangeLeaderboard();
+  }
+}
+
+function renderRangeLeaderboard() {
+  if (!dom.rangeLeaderboardList) return;
+  document.querySelectorAll('[data-range-leaderboard-duration]').forEach((button) => {
+    const active = Number(button.dataset.rangeLeaderboardDuration) === rangeLeaderboardDuration;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+  if (dom.refreshRangeLeaderboard) dom.refreshRangeLeaderboard.disabled = rangeLeaderboardLoading;
+  if (dom.rangeLeaderboardStatus) dom.rangeLeaderboardStatus.textContent = rangeLeaderboardStatus;
+
+  dom.rangeLeaderboardList.replaceChildren();
+  if (rangeLeaderboardLoading) return;
+  if (!rangeLeaderboardEntries.length) {
+    const empty = document.createElement('div');
+    empty.className = 'range-leaderboard-empty';
+    empty.textContent = '暂无可展示的靶场成绩。';
+    dom.rangeLeaderboardList.append(empty);
+    return;
+  }
+
+  rangeLeaderboardEntries.forEach((entry) => {
+    const row = document.createElement('div');
+    row.className = 'range-leaderboard-row';
+    row.classList.toggle('is-current-player', entry.isCurrentPlayer);
+    const rank = document.createElement('strong');
+    rank.className = 'range-leaderboard-rank';
+    rank.textContent = `#${entry.rank}`;
+    const player = document.createElement('span');
+    player.className = 'range-leaderboard-player';
+    player.textContent = entry.displayName;
+    const score = document.createElement('strong');
+    score.className = 'range-leaderboard-score';
+    score.textContent = String(entry.score);
+    const accuracy = document.createElement('span');
+    accuracy.textContent = formatPercent(entry.hits, entry.shots);
+    const reaction = document.createElement('span');
+    reaction.textContent = entry.averageReaction ? formatMs(entry.averageReaction) : '--';
+    row.append(rank, player, score, accuracy, reaction);
+    dom.rangeLeaderboardList.append(row);
+  });
+}
+
+async function submitRangeLeaderboardResult(result) {
+  try {
+    const submitted = await submitRangeResult(result);
+    if (submitted) await refreshRangeLeaderboard();
+  } catch (error) {
+    console.warn('Range leaderboard result was not submitted.', error);
+  }
 }
 
 let managedAccountsLoadedFor = '';
@@ -3475,6 +3576,7 @@ function finishRun() {
   renderResult(result);
   renderMenuStats();
   setOverlay('result');
+  submitRangeLeaderboardResult(result);
 }
 
 function showMenu() {

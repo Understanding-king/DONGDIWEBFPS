@@ -2535,6 +2535,74 @@ body.is-scoped .crosshair {
   font-size: 20px;
 }
 
+.range-leaderboard {
+  margin-top: 34px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(244, 247, 251, .16);
+}
+
+.range-leaderboard-head,
+.range-leaderboard-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.range-leaderboard-head > div:first-child > span {
+  color: var(--cyan);
+  font: 800 10px var(--mono);
+}
+
+.range-leaderboard-head h3 {
+  margin: 5px 0 0;
+  font-size: 18px;
+}
+
+.range-leaderboard-duration {
+  grid-template-columns: repeat(3, 52px);
+}
+
+.range-leaderboard-duration button {
+  min-height: 34px;
+  font: 800 10px var(--mono);
+}
+
+.range-leaderboard-columns,
+.range-leaderboard-row {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr) 92px 92px 88px;
+  align-items: center;
+  gap: 12px;
+}
+
+.range-leaderboard-columns {
+  min-height: 34px;
+  margin-top: 16px;
+  color: #74808e;
+  font: 700 10px var(--mono);
+}
+
+.range-leaderboard-row {
+  min-height: 48px;
+  border-top: 1px solid rgba(244, 247, 251, .08);
+  color: #9aa5b2;
+  font: 700 11px var(--mono);
+}
+
+.range-leaderboard-row.is-current-player {
+  padding-inline: 10px;
+  border-left: 3px solid var(--amber);
+  color: var(--ink);
+  background: rgba(255, 189, 90, .08);
+}
+
+.range-leaderboard-rank { color: var(--amber); }
+.range-leaderboard-player { overflow: hidden; color: var(--ink); font: 750 13px var(--body); text-overflow: ellipsis; white-space: nowrap; }
+.range-leaderboard-score { color: var(--cyan); }
+.range-leaderboard-empty { min-height: 74px; display: grid; place-items: center; border-top: 1px solid rgba(244, 247, 251, .08); color: #74808e; font: 650 11px var(--mono); }
+.range-leaderboard-status { min-height: 18px; margin: 12px 0 0; color: #74808e; font: 650 10px var(--mono); }
+
 .view-heading {
   min-height: 92px;
   display: flex;
@@ -2930,6 +2998,13 @@ button.weapon-row:hover,
 .room-friend-row .secondary-action { min-height: 30px; padding: 0 10px; font-size: 10px; }
 
 @media (max-width: 700px) {
+  .range-leaderboard-head { align-items: flex-start; flex-direction: column; }
+  .range-leaderboard-tools { width: 100%; }
+  .range-leaderboard-columns,
+  .range-leaderboard-row { grid-template-columns: 42px minmax(0, 1fr) 58px 50px 56px; gap: 7px; }
+  .range-leaderboard-columns { font-size: 8px; }
+  .range-leaderboard-row { font-size: 9px; }
+  .range-leaderboard-player { font-size: 11px; }
   .friend-add-form { grid-template-columns: 1fr; }
   .friends-panel { padding: 18px; }
   .friends-panel-head { align-items: flex-start; flex-direction: column; }

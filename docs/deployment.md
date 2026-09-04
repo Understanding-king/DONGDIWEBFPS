@@ -18,7 +18,7 @@ VITE_DUEL_WS_URL=wss://<realtime-host>/duel-ws
 
 ## Supabase
 
-在 Supabase SQL Editor 按顺序执行三份 `supabase/migrations/` 迁移，然后在 Auth 设置中确认允许 Email + Password 登录。前端只需要公开配置，不要使用 service-role key：
+在 Supabase SQL Editor 按文件名顺序执行 `supabase/migrations/` 下的全部迁移，然后在 Auth 设置中确认允许 Email + Password 登录。前端只需要公开配置，不要使用 service-role key：
 
 ```text
 VITE_SUPABASE_URL=https://<project>.supabase.co

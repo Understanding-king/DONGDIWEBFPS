@@ -229,6 +229,23 @@
                   </div>
                 </section>
               </div>
+
+              <section class="range-leaderboard" aria-labelledby="range-leaderboard-title">
+                <div class="range-leaderboard-head">
+                  <div><span>RANGE RANKING</span><h3 id="range-leaderboard-title">六向球靶排行榜</h3></div>
+                  <div class="range-leaderboard-tools">
+                    <div class="segmented range-leaderboard-duration" aria-label="排行榜训练时长">
+                      <button type="button" data-range-leaderboard-duration="30" aria-pressed="false">30s</button>
+                      <button type="button" data-range-leaderboard-duration="60" aria-pressed="true">60s</button>
+                      <button type="button" data-range-leaderboard-duration="90" aria-pressed="false">90s</button>
+                    </div>
+                    <button class="icon-action" id="refresh-range-leaderboard" type="button" aria-label="刷新靶场排行榜" title="刷新靶场排行榜"><i data-lucide="refresh-cw"></i></button>
+                  </div>
+                </div>
+                <div class="range-leaderboard-columns" aria-hidden="true"><span>排名</span><span>玩家</span><span>分数</span><span>命中率</span><span>反应</span></div>
+                <div class="range-leaderboard-list" id="range-leaderboard-list" aria-live="polite"></div>
+                <p class="range-leaderboard-status" id="range-leaderboard-status" aria-live="polite">正在读取排行榜...</p>
+              </section>
             </section>
 
             <section class="lobby-view" data-lobby-panel="play" aria-label="玩法">
@@ -327,6 +344,8 @@
           <button class="primary-action" type="submit">保存本地档案</button>
         </form>
         <form class="account-form cloud-account-form" id="cloud-account-form">
+          <label for="account-display-name">游戏昵称（注册时填写）</label>
+          <input class="text-input" id="account-display-name" maxlength="16" autocomplete="nickname" placeholder="例如：懂帝" />
           <label for="account-email">邮箱</label>
           <input class="text-input" id="account-email" type="email" autocomplete="email" placeholder="operator@example.com" />
           <label for="account-password">密码</label>

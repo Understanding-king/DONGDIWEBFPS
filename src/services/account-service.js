@@ -74,6 +74,34 @@ export async function updateManagedAccount({ id, role, status, credits }) {
   return normalizeManagedAccount(Array.isArray(payload) ? payload[0] : payload);
 }
 
+export async function getRangeLeaderboard(duration = 60) {
+  assertCloudConfigured();
+  const rows = await cloudPublicRequest('/rest/v1/rpc/get_range_leaderboard', {
+    method: 'POST',
+    body: { p_duration: normalizeRangeDuration(duration), p_limit: 10 }
+  });
+  return Array.isArray(rows) ? rows.map(normalizeLeaderboardEntry).filter(Boolean) : [];
+}
+
+export async function submitRangeResult(result) {
+  if (!hasActiveCloudSession()) return false;
+  const duration = normalizeRangeDuration(result?.duration);
+  const hits = clampInteger(result?.hits, 0, 10000, 0);
+  const shots = clampInteger(result?.shots, hits, 10000, hits);
+  await cloudProfileRequest('/rest/v1/rpc/record_range_result', {
+    method: 'POST',
+    body: {
+      p_duration: duration,
+      p_score: clampInteger(result?.score, 0, 999999, 0),
+      p_hits: hits,
+      p_shots: shots,
+      p_average_reaction: clampInteger(result?.averageReaction, 0, 60000, 0),
+      p_best_streak: clampInteger(result?.bestStreak, 0, 10000, 0)
+    }
+  });
+  return true;
+}
+
 export function getFriends() {
   if (hasActiveCloudSession()) {
     return Array.isArray(cloudFriends) ? cloudFriends.map((friend) => ({ ...friend })) : [];
@@ -266,6 +294,22 @@ async function cloudRequest(path, { method, body }) {
   return payload;
 }
 
+async function cloudPublicRequest(path, { method, body }) {
+  const accessToken = hasActiveCloudSession() ? cloudSession.access_token : cloudAnonKey;
+  const response = await fetch(`${cloudUrl}${path}`, {
+    method,
+    headers: {
+      apikey: cloudAnonKey,
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload?.message || payload?.hint || '排行榜请求失败。');
+  return payload;
+}
+
 function persistCloudSession(session) {
   cloudProfile = null;
   cloudFriends = null;
@@ -424,6 +468,25 @@ function normalizeManagedAccount(account) {
   };
 }
 
+function normalizeLeaderboardEntry(entry) {
+  if (!entry?.user_id) return null;
+  const hits = clampInteger(entry.hits, 0, 10000, 0);
+  const shots = clampInteger(entry.shots, hits, 10000, hits);
+  return {
+    rank: clampInteger(entry.rank, 1, 999999, 999999),
+    userId: String(entry.user_id),
+    displayName: sanitizeDisplayName(entry.display_name || '玩家'),
+    duration: normalizeRangeDuration(entry.duration),
+    score: clampInteger(entry.score, 0, 999999, 0),
+    hits,
+    shots,
+    accuracy: shots ? hits / shots : 0,
+    averageReaction: clampInteger(entry.average_reaction, 0, 60000, 0),
+    bestStreak: clampInteger(entry.best_streak, 0, 10000, 0),
+    isCurrentPlayer: entry.is_current_player === true
+  };
+}
+
 function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
 }
@@ -455,6 +518,11 @@ function normalizeAccountStatus(value) {
   return ['active', 'suspended'].includes(String(value || '').toLowerCase())
     ? String(value).toLowerCase()
     : 'active';
+}
+
+function normalizeRangeDuration(value) {
+  const duration = Number(value);
+  return [30, 60, 90].includes(duration) ? duration : 60;
 }
 
 function sanitizeEmail(value) {
