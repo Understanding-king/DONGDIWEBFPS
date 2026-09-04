@@ -267,8 +267,11 @@ const DETAILED_AK_ASSETS = [
   { filename: '123456_wire_115115115_nmap.png', label: '法线贴图', type: 'blob' },
   { filename: '123456_wire_115115115_rough.png', label: '粗糙度贴图', type: 'blob' }
 ];
+const DETAILED_AK_CACHE_VERSION = 'v1';
+const DETAILED_AK_CACHE_NAME = `dongdiwebfps-ak-assets-${DETAILED_AK_CACHE_VERSION}`;
 const DETAILED_AK_ATTEMPT_DELAYS = [0, 1500, 5000];
-const DETAILED_AK_REQUEST_TIMEOUT_MS = 45000;
+// The source package is about 46 MB. Let background preloading finish on slower connections.
+const DETAILED_AK_REQUEST_TIMEOUT_MS = 120000;
 const DETAILED_AK_BACKGROUND_RETRY_MS = 30000;
 const MATCH_LOADING_MAX_MS = 36000;
 const LAN_LOADING_MAX_MS = 44000;
@@ -585,6 +588,7 @@ let detailedAkLoadState = 'idle';
 let detailedAkRetryTimer = null;
 let detailedAkLoadPromise = null;
 let detailedAkLastError = null;
+let detailedAkCachePersistenceRequested = false;
 const detailedAkProgress = {
   loadedBytes: 0,
   totalBytes: 0,
@@ -1816,16 +1820,82 @@ async function fetchDetailedAkAsset(asset) {
     label: asset.label,
     loadedBytes: 0,
     totalBytes: 0,
-    status: 'loading'
+    status: 'loading',
+    source: 'network'
   };
   detailedAkProgress.assetStates.set(asset.filename, state);
   emitDetailedAkProgress();
   try {
-    const response = await fetch(`${DETAILED_AK_ASSET_PATH}${asset.filename}`, {
+    const url = getDetailedAkAssetUrl(asset);
+    const cachedResponse = await getCachedDetailedAkAsset(url);
+    if (cachedResponse) {
+      state.source = 'cache';
+      emitDetailedAkProgress();
+      const blob = await readDetailedAkAssetResponse(cachedResponse, state);
+      return { filename: asset.filename, blob };
+    }
+
+    const response = await fetch(url, {
       cache: 'force-cache',
       signal: controller.signal
     });
     if (!response.ok) throw new Error(`AK asset request failed: ${asset.filename} (${response.status})`);
+    const blob = await readDetailedAkAssetResponse(response, state);
+    await cacheDetailedAkAsset(url, blob, response.headers.get('content-type'));
+    return { filename: asset.filename, blob };
+  } catch (error) {
+    state.status = 'error';
+    emitDetailedAkProgress();
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+function getDetailedAkAssetUrl(asset) {
+  const path = `${DETAILED_AK_ASSET_PATH}${asset.filename}`;
+  const url = new URL(path, window.location.origin);
+  url.searchParams.set('v', DETAILED_AK_CACHE_VERSION);
+  return url.toString();
+}
+
+async function getCachedDetailedAkAsset(url) {
+  if (!window.caches?.open) return null;
+  try {
+    const cache = await window.caches.open(DETAILED_AK_CACHE_NAME);
+    return await cache.match(url);
+  } catch (error) {
+    console.warn('AK local cache is unavailable; using network assets.', error);
+    return null;
+  }
+}
+
+async function cacheDetailedAkAsset(url, blob, contentType) {
+  if (!window.caches?.open) return;
+  try {
+    const cache = await window.caches.open(DETAILED_AK_CACHE_NAME);
+    const headers = new Headers({
+      'content-length': String(blob.size),
+      'content-type': contentType || blob.type || 'application/octet-stream'
+    });
+    await cache.put(url, new Response(blob, { headers }));
+    requestDetailedAkStoragePersistence();
+  } catch (error) {
+    console.warn('AK asset downloaded but could not be saved locally.', error);
+  }
+}
+
+function requestDetailedAkStoragePersistence() {
+  if (detailedAkCachePersistenceRequested) return;
+  detailedAkCachePersistenceRequested = true;
+  try {
+    navigator.storage?.persist?.().catch(() => {});
+  } catch {
+    // Cache Storage remains usable even when persistent storage is unavailable.
+  }
+}
+
+async function readDetailedAkAssetResponse(response, state) {
     const contentLength = Number(response.headers.get('content-length')) || 0;
     state.totalBytes = contentLength;
 
@@ -1835,7 +1905,7 @@ async function fetchDetailedAkAsset(asset) {
       state.totalBytes ||= blob.size;
       state.status = 'ready';
       emitDetailedAkProgress();
-      return { filename: asset.filename, blob };
+      return blob;
     }
 
     const reader = response.body.getReader();
@@ -1854,14 +1924,7 @@ async function fetchDetailedAkAsset(asset) {
     state.totalBytes ||= blob.size;
     state.status = 'ready';
     emitDetailedAkProgress();
-    return { filename: asset.filename, blob };
-  } catch (error) {
-    state.status = 'error';
-    emitDetailedAkProgress();
-    throw error;
-  } finally {
-    window.clearTimeout(timeout);
-  }
+    return blob;
 }
 
 function preloadDetailedAkMaterials(materials, manager) {
@@ -1947,10 +2010,16 @@ function getDetailedAkTransferProgress(snapshot) {
 }
 
 function getDetailedAkProgressLabel(snapshot, progress) {
-  if (snapshot.state === 'ready') return 'AK 高模、材质与贴图已就绪';
+  if (snapshot.state === 'ready') {
+    const loadedFromCache = snapshot.assets.length === DETAILED_AK_ASSETS.length
+      && snapshot.assets.every((asset) => asset.source === 'cache');
+    return loadedFromCache ? 'AK 高模已从本机缓存加载' : 'AK 高模、材质与贴图已就绪';
+  }
   if (snapshot.state === 'fallback') return '备用模型启用，正在后台重试';
   if (snapshot.phase === 'materials') return '文件下载完成，正在解码材质与贴图';
   if (snapshot.phase === 'geometry') return '文件下载完成，正在解析 AK 高模';
+  const activeAsset = snapshot.assets.find((asset) => asset.status === 'loading');
+  if (activeAsset?.source === 'cache') return `${progress}% · 正在从本机缓存读取 ${activeAsset.label}`;
   return `${progress}% · ${snapshot.activeAsset || '正在准备资源队列'}`;
 }
 
@@ -2076,7 +2145,9 @@ function updateMatchLoadingUi(snapshot) {
     const state = assetStates.get(asset.filename);
     const label = document.createElement('span');
     const name = document.createElement('strong');
-    label.textContent = state?.status === 'ready' ? 'READY' : state?.status === 'error' ? 'OPTIONAL' : 'SYNCING';
+    label.textContent = state?.status === 'ready'
+      ? state.source === 'cache' ? 'LOCAL' : 'READY'
+      : state?.status === 'error' ? 'OPTIONAL' : 'SYNCING';
     name.textContent = asset.label;
     item.className = 'match-loading-asset';
     item.classList.toggle('is-ready', state?.status === 'ready');
@@ -2121,7 +2192,7 @@ function updateHomeAkLoadingUi(snapshot) {
   dom.homeAkLoading.dataset.state = snapshot.state;
   dom.homeAkLoading.dataset.phase = snapshot.phase;
   if (snapshot.state === 'ready') {
-    dom.homeAkLoadingStatus.textContent = '高模已就绪';
+    dom.homeAkLoadingStatus.textContent = getDetailedAkProgressLabel(snapshot, progress);
   } else if (snapshot.state === 'fallback') {
     dom.homeAkLoadingStatus.textContent = '备用模型 · 后台重试';
   } else {
