@@ -251,10 +251,16 @@ const BOT_SETTINGS = {
     prefireOnSight: true
   }
 };
-const WEAPON_HIP_POSITION = new THREE.Vector3(0.48, -0.48, -0.9);
-const WEAPON_ADS_POSITION = new THREE.Vector3(-0.009, -0.245, -0.86);
+const WEAPON_HIP_POSITION = new THREE.Vector3(0.48, -0.43, -0.9);
+const WEAPON_ADS_POSITION = new THREE.Vector3(-0.009, -0.221, -0.86);
 const WEAPON_HIP_ROTATION = new THREE.Euler(-0.03, -0.09, 0.02);
 const WEAPON_ADS_ROTATION = new THREE.Euler(-0.018, 0, 0);
+const DETAILED_AK_ASSET_PATH = '/models/ak-47/';
+const DETAILED_AK_ATTEMPT_DELAYS = [0, 1500, 5000];
+const DETAILED_AK_REQUEST_TIMEOUT_MS = 45000;
+const DETAILED_AK_BACKGROUND_RETRY_MS = 30000;
+// This is the rear-sight groove, not the top edge of the receiver.
+const AK_REAR_SIGHT_REFERENCE_FROM_TOP = 0.03;
 const SNIPER_HIP_POSITION = new THREE.Vector3(0.45, -0.41, -0.96);
 const SNIPER_HIP_ROTATION = new THREE.Euler(-0.04, -0.06, 0.014);
 const SNIPER_ADS_POSITION = SNIPER_HIP_POSITION.clone();
@@ -541,6 +547,8 @@ let muzzleLight;
 let weaponModels = {};
 const weaponPreviews = [];
 let previewAkSource = null;
+let detailedAkLoadState = 'idle';
+let detailedAkRetryTimer = null;
 let knifeGroup;
 let icecreamGroup;
 let opponentGroup;
@@ -714,6 +722,8 @@ const nameplateTargetPoint = new THREE.Vector3();
 const nameplateViewDirection = new THREE.Vector3();
 const nameplateCameraForward = new THREE.Vector3();
 const cheatTargetPoint = new THREE.Vector3();
+const akSightWorld = new THREE.Vector3();
+const akSightCameraSpace = new THREE.Vector3();
 const opponentPoseState = {
   crouch: false,
   airborne: false,
@@ -1612,74 +1622,117 @@ function buildWeapon() {
 }
 
 async function loadDetailedAkModel() {
-  if (!weaponGroup || !camera) return;
-  try {
-    const materials = await new Promise((resolve, reject) => {
-      const loader = new MTLLoader();
-      loader.setPath('/models/ak-47/');
-      loader.load('123456.mtl', resolve, undefined, reject);
-    });
-    materials.preload();
+  if (!weaponGroup || !camera || detailedAkLoadState === 'loading' || detailedAkLoadState === 'ready') return;
+  detailedAkLoadState = 'loading';
+  let lastError = null;
 
-    const object = await new Promise((resolve, reject) => {
-      const loader = new OBJLoader();
-      loader.setMaterials(materials);
-      loader.setPath('/models/ak-47/');
-      loader.load('ak-47.obj', resolve, undefined, reject);
-    });
+  for (const [attemptIndex, delay] of DETAILED_AK_ATTEMPT_DELAYS.entries()) {
+    if (delay) await waitForDetailedAkRetry(delay);
+    try {
+      const object = await loadDetailedAkSource();
+      const bounds = new THREE.Box3().setFromObject(object);
+      const size = bounds.getSize(new THREE.Vector3());
+      const center = bounds.getCenter(new THREE.Vector3());
+      if (!size.z || !size.y) throw new Error('AK model has invalid bounds');
 
-    const bounds = new THREE.Box3().setFromObject(object);
-    const size = bounds.getSize(new THREE.Vector3());
-    const center = bounds.getCenter(new THREE.Vector3());
-    if (!size.z || !size.y) throw new Error('AK model has invalid bounds');
+      const lengthScale = 2.02 / size.z;
+      const scaleX = lengthScale * 1.12;
+      object.scale.set(scaleX, lengthScale, lengthScale);
+      object.position.set(-center.x * scaleX, -center.y * lengthScale, -center.z * lengthScale);
+      object.rotation.y = Math.PI;
+      object.traverse((child) => {
+        if (!child.isMesh) return;
+        child.frustumCulled = true;
+        child.castShadow = false;
+        child.receiveShadow = false;
+        if (child.material) {
+          const materialsToTune = Array.isArray(child.material) ? child.material : [child.material];
+          materialsToTune.forEach((material) => {
+            material.side = THREE.FrontSide;
+            material.needsUpdate = true;
+          });
+        }
+      });
 
-    const lengthScale = 2.02 / size.z;
-    const scaleX = lengthScale * 1.12;
-    object.scale.set(scaleX, lengthScale, lengthScale);
-    object.position.set(-center.x * scaleX, -center.y * lengthScale, -center.z * lengthScale);
-    object.rotation.y = Math.PI;
-    object.traverse((child) => {
-      if (!child.isMesh) return;
-      child.frustumCulled = true;
-      child.castShadow = false;
-      child.receiveShadow = false;
-      if (child.material) {
-        const materialsToTune = Array.isArray(child.material) ? child.material : [child.material];
-        materialsToTune.forEach((material) => {
-          material.side = THREE.FrontSide;
-          material.needsUpdate = true;
-        });
-      }
-    });
+      const muzzleFlash = new THREE.Mesh(
+        new THREE.ConeGeometry(0.13, 0.44, 16, 1, true),
+        createFlashMaterial()
+      );
+      muzzleFlash.rotation.x = -Math.PI / 2;
+      muzzleFlash.position.set(0, 0.02, -1.25);
+      muzzleFlash.visible = false;
+      object.add(muzzleFlash);
 
-    const muzzleFlash = new THREE.Mesh(
-      new THREE.ConeGeometry(0.13, 0.44, 16, 1, true),
-      createFlashMaterial()
-    );
-    muzzleFlash.rotation.x = -Math.PI / 2;
-    muzzleFlash.position.set(0, 0.02, -1.25);
-    muzzleFlash.visible = false;
-    object.add(muzzleFlash);
+      const muzzleLight = new THREE.PointLight('#ffbd5a', 0, 2.6);
+      muzzleLight.position.copy(muzzleFlash.position);
+      object.add(muzzleLight);
 
-    const muzzleLight = new THREE.PointLight('#ffbd5a', 0, 2.6);
-    muzzleLight.position.copy(muzzleFlash.position);
-    object.add(muzzleLight);
+      const muzzleTip = new THREE.Object3D();
+      muzzleTip.position.set(0, 0.02, -1.28);
+      object.add(muzzleTip);
+      const aimPoint = new THREE.Object3D();
+      aimPoint.position.set(
+        0,
+        bounds.max.y - size.y * AK_REAR_SIGHT_REFERENCE_FROM_TOP,
+        center.z + size.z * 0.012
+      );
+      object.add(aimPoint);
 
-    const muzzleTip = new THREE.Object3D();
-    muzzleTip.position.set(0, 0.02, -1.28);
-    object.add(muzzleTip);
-
-    const previous = weaponModels.ak;
-    weaponGroup.remove(previous.group);
-    previous.group.visible = false;
-    weaponModels.ak = { group: object, muzzleTip, muzzleFlash, muzzleLight };
-    weaponGroup.add(object);
-    syncWeaponModel();
-    previewAkSource = object;
-    weaponPreviews.forEach((preview) => setWeaponPreviewModel(preview, object));
-  } catch (error) {
-    console.warn('Detailed AK model unavailable; using built-in model.', error);
+      const previous = weaponModels.ak;
+      weaponGroup.remove(previous.group);
+      previous.group.visible = false;
+      weaponModels.ak = { group: object, muzzleTip, muzzleFlash, muzzleLight, aimPoint, detailed: true };
+      weaponGroup.add(object);
+      syncWeaponModel();
+      previewAkSource = object;
+      weaponPreviews.forEach((preview) => setWeaponPreviewModel(preview, object));
+      detailedAkLoadState = 'ready';
+      return;
+    } catch (error) {
+      lastError = error;
+      console.warn(`Detailed AK model load attempt ${attemptIndex + 1} failed.`, error);
+    }
   }
+
+  detailedAkLoadState = 'fallback';
+  console.warn('Detailed AK model is unavailable for now; using the built-in model and retrying in the background.', lastError);
+  window.clearTimeout(detailedAkRetryTimer);
+  detailedAkRetryTimer = window.setTimeout(() => {
+    detailedAkLoadState = 'idle';
+    loadDetailedAkModel();
+  }, DETAILED_AK_BACKGROUND_RETRY_MS);
+}
+
+async function loadDetailedAkSource() {
+  const [materialText, objectText] = await Promise.all([
+    fetchDetailedAkText('123456.mtl'),
+    fetchDetailedAkText('ak-47.obj')
+  ]);
+  const materialLoader = new MTLLoader();
+  const materials = materialLoader.parse(materialText, DETAILED_AK_ASSET_PATH);
+  materials.preload();
+  const objectLoader = new OBJLoader();
+  objectLoader.setMaterials(materials);
+  return objectLoader.parse(objectText);
+}
+
+async function fetchDetailedAkText(filename) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), DETAILED_AK_REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${DETAILED_AK_ASSET_PATH}${filename}`, {
+      cache: 'force-cache',
+      signal: controller.signal
+    });
+    if (!response.ok) throw new Error(`AK asset request failed: ${filename} (${response.status})`);
+    return await response.text();
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+function waitForDetailedAkRetry(delay) {
+  return new Promise((resolve) => window.setTimeout(resolve, delay));
 }
 
 function initWeaponPreviews() {
@@ -5921,12 +5974,25 @@ function animateWeapon(delta, now) {
   );
   if (weapon.id === 'shotgun') applyShotgunSpinMotion(now, poseBlend);
   applyWeaponSwitchMotion(now, weapon.id === 'sniper' ? 1.08 : 1);
+  if (weapon.id === 'ak' && adsBlend > 0.01) alignDetailedAkSightToCrosshair(adsBlend);
   if (muzzleFlash) {
     const flashLive = Math.max(0, muzzleFlashUntil - now) / 42;
     muzzleFlash.visible = flashLive > 0;
     muzzleFlash.material.opacity = flashLive * 0.95;
   }
   if (muzzleLight) muzzleLight.intensity = Math.max(0, muzzleLight.intensity - delta * 75);
+}
+
+function alignDetailedAkSightToCrosshair(blend) {
+  const ak = weaponModels.ak;
+  if (!ak?.detailed || !ak.aimPoint || !camera || !weaponGroup) return;
+  camera.updateMatrixWorld(true);
+  weaponGroup.updateMatrixWorld(true);
+  ak.aimPoint.getWorldPosition(akSightWorld);
+  akSightCameraSpace.copy(akSightWorld);
+  camera.worldToLocal(akSightCameraSpace);
+  weaponGroup.position.x -= akSightCameraSpace.x * blend;
+  weaponGroup.position.y -= akSightCameraSpace.y * blend;
 }
 
 function animateIcecream(now) {
