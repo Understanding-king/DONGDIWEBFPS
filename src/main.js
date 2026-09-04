@@ -1931,11 +1931,16 @@ async function loadDetailedAwpModel() {
       const center = bounds.getCenter(new THREE.Vector3());
       if (!size.x || !size.y) throw new Error('AWP model has invalid bounds');
 
-      // The source model uses +X as the muzzle direction. Rotate it into the camera's -Z forward axis.
+      // This Blender export uses +X for the muzzle and -Z for the top of the rifle.
+      // Map those axes directly to the viewmodel's forward (-Z) and upward (+Y) directions.
       const scale = 1.92 / size.x;
       object.scale.setScalar(scale);
-      object.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
-      object.rotation.y = Math.PI / 2;
+      object.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+        new THREE.Vector3(0, 0, -1),
+        new THREE.Vector3(1, 0, 0),
+        new THREE.Vector3(0, -1, 0)
+      ));
+      object.position.copy(center.clone().multiplyScalar(-scale).applyQuaternion(object.quaternion));
       object.userData.isDetailedAwp = true;
       object.traverse((child) => {
         if (!child.isMesh) return;
