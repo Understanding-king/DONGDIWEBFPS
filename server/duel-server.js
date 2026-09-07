@@ -16,7 +16,8 @@ const MIN_SHOT_INTERVAL = 82;
 const WEAPONS = {
   ak: { minShotInterval: MIN_SHOT_INTERVAL, bodyDamage: 25, headDamage: 49 },
   sniper: { minShotInterval: 820, bodyDamage: 100, headDamage: 150 },
-  shotgun: { minShotInterval: 760, bodyDamage: 14, headDamage: 22, pellets: 9 }
+  shotgun: { minShotInterval: 760, bodyDamage: 14, headDamage: 22, pellets: 9 },
+  m200: { minShotInterval: 72, scopedShotInterval: 1750, bodyDamage: 100, headDamage: 160 }
 };
 const CAMERA_HEIGHT = 1.58;
 const CROUCH_CAMERA_HEIGHT = 1.08;
@@ -493,12 +494,14 @@ function updatePose(client, message) {
 
   const config = getMapConfig(room.map);
   const bounds = config.bounds;
+  const nextWeapon = sanitizeWeapon(message.weapon);
+  if (client.weapon !== nextWeapon && nextWeapon === 'm200') client.lastShotAt = 0;
   client.pose = {
     position: sanitizePosition(message.position, client.pose.position, bounds, config.blockers, PLAYER_COLLISION_RADIUS, Boolean(message.crouch)),
     yaw: clampNumber(message.yaw, -Math.PI * 2, Math.PI * 2, client.pose.yaw),
     pitch: clampNumber(message.pitch, -1.2, 1.2, client.pose.pitch || 0),
     ads: Boolean(message.ads),
-    weapon: sanitizeWeapon(message.weapon),
+    weapon: nextWeapon,
     crouch: Boolean(message.crouch),
     airborne: Boolean(message.airborne),
     moving: Boolean(message.moving),
@@ -515,7 +518,10 @@ function handleShot(client, message) {
   const now = Date.now();
   const weaponName = sanitizeWeapon(message.weapon);
   const weapon = WEAPONS[weaponName] || WEAPONS.ak;
-  if (now - client.lastShotAt < weapon.minShotInterval) return;
+  const shotInterval = weaponName === 'm200' && (Boolean(message.ads) || client.pose?.ads)
+    ? weapon.scopedShotInterval
+    : weapon.minShotInterval;
+  if (now - client.lastShotAt < shotInterval) return;
   client.lastShotAt = now;
 
   const origin = sanitizeVector(message.origin);

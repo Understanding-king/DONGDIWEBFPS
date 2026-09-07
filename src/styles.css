@@ -602,7 +602,7 @@ body.kill-impact .scene-canvas { animation: kill-camera-shake .28s cubic-bezier(
 .duel-loadout-head .lucide { width: 14px; height: 14px; color: var(--cyan); }
 .duel-loadout-head > strong { margin-left: auto; color: var(--amber); font: 900 12px var(--mono); }
 .duel-loadout-head > strong b { font-size: 16px; }
-.duel-loadout-packs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin-top: 8px; }
+.duel-loadout-packs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; margin-top: 8px; }
 .duel-loadout-packs > span { display: grid; grid-template-columns: auto 1fr; column-gap: 7px; align-items: center; min-height: 44px; padding: 7px 8px; border: 1px solid rgba(232, 237, 247, .13); background: rgba(244, 247, 251, .035); color: #9caab8; transition: border-color .14s ease, background .14s ease, color .14s ease; }
 .duel-loadout-packs b { grid-row: span 2; color: rgba(232, 237, 247, .42); font: 850 10px var(--mono); }
 .duel-loadout-packs strong { color: inherit; font: 850 12px var(--mono); }
@@ -636,6 +636,7 @@ body.kill-impact .scene-canvas { animation: kill-camera-shake .28s cubic-bezier(
   .kill-feed { top: 78px; left: 50%; width: calc(100vw - 28px); }
   .spawn-shield { bottom: 112px; }
   .duel-loadout-window { bottom: 142px; }
+  .duel-loadout-packs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 .hit-marker {

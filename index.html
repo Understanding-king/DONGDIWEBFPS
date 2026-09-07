@@ -123,6 +123,7 @@
           <span data-duel-loadout="ak"><b>01</b><strong>AK-47</strong><small>突击</small></span>
           <span data-duel-loadout="sniper"><b>02</b><strong>AWP</strong><small>狙击</small></span>
           <span data-duel-loadout="shotgun"><b>03</b><strong>M870</strong><small>破门</small></span>
+          <span data-duel-loadout="m200"><b>04</b><strong>M200</strong><small>幻神</small></span>
         </div>
         <p><kbd>B</kbd> 切换背包 · 开火后锁定</p>
       </section>
@@ -130,7 +131,7 @@
       <div class="weapon-indicator" id="weapon-indicator" hidden>
         <span id="weapon-slot-label">主武器</span>
         <strong id="weapon-name-label">AK-47</strong>
-        <small id="weapon-action-hint">Space 跳 · F 雪糕 · B/滚轮/1/2/3 武器 · Q 求生刀 · E 主武器</small>
+        <small id="weapon-action-hint">Space 跳 · F 雪糕 · B/滚轮/1/2/3/4 武器 · Q 求生刀 · E 主武器</small>
       </div>
 
       <div class="icecream-status" id="icecream-status" hidden>F 巧乐兹 可用</div>
@@ -333,6 +334,7 @@
                   <button class="weapon-row active" type="button" data-equip-weapon="ak"><span class="weapon-index">01</span><span><b>AK-47</b><small>突击步枪</small></span><em>已装备</em></button>
                   <button class="weapon-row" type="button" data-equip-weapon="sniper"><span class="weapon-index">02</span><span><b>AWP</b><small>狙击步枪</small></span><em>已拥有</em></button>
                   <button class="weapon-row" type="button" data-equip-weapon="shotgun"><span class="weapon-index">03</span><span><b>M870</b><small>泵动霰弹枪</small></span><em>已拥有</em></button>
+                  <button class="weapon-row" type="button" data-equip-weapon="m200"><span class="weapon-index">04</span><span><b>M200</b><small>反器材狙击枪</small></span><em>已拥有</em></button>
                   <div class="weapon-row locked"><span class="weapon-index"><i data-lucide="lock-keyhole"></i></span><span><b>赛季军需</b><small>受限武器槽位</small></span><em>未开放</em></div>
                 </div>
                 <div class="inventory-focus">
@@ -592,7 +594,7 @@
           <button class="primary-action" id="start-bot-button" type="button">开始人机</button>
           <button class="secondary-action" id="bot-back-button" type="button">返回模式</button>
         </div>
-        <p class="status-line" id="bot-status">进入后 WASD 移动，Space 跳，左键开火，右键切换开镜，B/滚轮/1/2/3 选主武器，Q 求生刀，E 主武器。炼狱每 6 发会校准一次命中。</p>
+        <p class="status-line" id="bot-status">进入后 WASD 移动，Space 跳，左键开火，右键切换开镜，B/滚轮/1/2/3/4 选主武器，Q 求生刀，E 主武器。炼狱每 6 发会校准一次命中。</p>
       </section>
 
       <section class="panel pause-panel" id="pause-panel" aria-labelledby="pause-title" hidden>

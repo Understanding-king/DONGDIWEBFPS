@@ -147,6 +147,17 @@ const SNIPER_ADS_SENSITIVITY_SCALE = 0.62;
 const SNIPER_RECOIL = 0.074;
 const SNIPER_BODY_DAMAGE = 100;
 const SNIPER_HEAD_DAMAGE = 150;
+// M200 is ready almost immediately after a weapon switch, but scoped follow-up shots are deliberate.
+const M200_FIRE_INTERVAL = 72;
+const M200_ADS_FIRE_INTERVAL = 1850;
+const M200_BASE_SPREAD = 0.0048;
+const M200_ADS_SPREAD = 0.00005;
+const M200_MAX_SPREAD = 0.009;
+const M200_ADS_FOV = 24;
+const M200_ADS_SENSITIVITY_SCALE = 0.56;
+const M200_RECOIL = 0.092;
+const M200_BODY_DAMAGE = 100;
+const M200_HEAD_DAMAGE = 160;
 const SHOTGUN_FIRE_INTERVAL = 760;
 const SHOTGUN_BASE_SPREAD = 0.038;
 const SHOTGUN_ADS_SPREAD_SCALE = 0.82;
@@ -313,17 +324,22 @@ const SNIPER_HIP_POSITION = new THREE.Vector3(0.38, -0.34, -1.24);
 const SNIPER_HIP_ROTATION = new THREE.Euler(-0.04, -0.1, 0.014);
 const SNIPER_ADS_POSITION = SNIPER_HIP_POSITION.clone();
 const SNIPER_ADS_ROTATION = SNIPER_HIP_ROTATION.clone();
+const M200_HIP_POSITION = new THREE.Vector3(0.42, -0.35, -1.2);
+const M200_HIP_ROTATION = new THREE.Euler(-0.045, -0.105, 0.014);
+const M200_ADS_POSITION = M200_HIP_POSITION.clone();
+const M200_ADS_ROTATION = M200_HIP_ROTATION.clone();
 const KNIFE_POSITION = new THREE.Vector3(0.72, -0.44, -1.42);
 const KNIFE_ROTATION = new THREE.Euler(-0.1, -0.42, -0.34);
 const SHOTGUN_HIP_POSITION = new THREE.Vector3(0.5, -0.42, -0.88);
 const SHOTGUN_ADS_POSITION = new THREE.Vector3(0.015, -0.235, -0.86);
 const SHOTGUN_HIP_ROTATION = new THREE.Euler(-0.045, -0.08, 0.018);
 const SHOTGUN_ADS_ROTATION = new THREE.Euler(-0.02, 0, 0);
-const PRIMARY_WEAPON_ORDER = ['ak', 'sniper', 'shotgun'];
+const PRIMARY_WEAPON_ORDER = ['ak', 'sniper', 'shotgun', 'm200'];
 const LOBBY_WEAPON_STATS = {
   ak: { label: 'AK-47', short: 'AK', type: '突击步枪', caliber: '7.62 MM', mode: '全自动', power: 72, rate: 82, control: 58 },
   sniper: { label: 'AWP', short: 'AWP', type: '狙击步枪', caliber: '.338', mode: '栓动', power: 100, rate: 24, control: 88 },
-  shotgun: { label: 'M870', short: 'M870', type: '泵动霞弹枪', caliber: '12 GA', mode: '泵动', power: 91, rate: 31, control: 46 }
+  shotgun: { label: 'M870', short: 'M870', type: '泵动霞弹枪', caliber: '12 GA', mode: '泵动', power: 91, rate: 31, control: 46 },
+  m200: { label: 'M200', short: 'M200', type: '反器材狙击枪', caliber: '.408', mode: '栓动', power: 100, rate: 18, control: 94 }
 };
 const SOUND_VOLUME_MULTIPLIER = 5.2;
 
@@ -369,6 +385,27 @@ const WEAPONS = {
     adsPosition: SNIPER_ADS_POSITION,
     hipRotation: SNIPER_HIP_ROTATION,
     adsRotation: SNIPER_ADS_ROTATION
+  },
+  m200: {
+    id: 'm200',
+    label: 'M200 幻神',
+    slotLabel: '主武器',
+    fireInterval: M200_FIRE_INTERVAL,
+    automatic: false,
+    baseSpread: M200_BASE_SPREAD,
+    spreadStep: 0,
+    maxSpread: M200_MAX_SPREAD,
+    adsSpreadScale: 0.01,
+    adsFov: M200_ADS_FOV,
+    adsSensitivityScale: M200_ADS_SENSITIVITY_SCALE,
+    recoilScale: 1.35,
+    adsRecoilScale: 1,
+    bodyDamage: M200_BODY_DAMAGE,
+    headDamage: M200_HEAD_DAMAGE,
+    hipPosition: M200_HIP_POSITION,
+    adsPosition: M200_ADS_POSITION,
+    hipRotation: M200_HIP_ROTATION,
+    adsRotation: M200_ADS_ROTATION
   },
   shotgun: {
     id: 'shotgun',
@@ -1766,12 +1803,13 @@ function buildWeapon() {
   weaponModels = {
     ak: createAkModel({ metal, darkMetal, wornMetal, wood, rubber, accent, brass }),
     sniper: createSniperModel({ metal, darkMetal, wornMetal, rubber, accent, lens }),
-    shotgun: createShotgunModel({ metal, darkMetal, wornMetal, wood, rubber, accent })
+    shotgun: createShotgunModel({ metal, darkMetal, wornMetal, wood, rubber, accent }),
+    m200: createM200Model({ metal, darkMetal, wornMetal, rubber, accent, lens })
   };
   knifeGroup = createClawKnifeModel({ darkMetal, rubber, blade, bladeEdge, accent });
   icecreamGroup = createIcecreamModel();
 
-  weaponGroup.add(weaponModels.ak.group, weaponModels.sniper.group, weaponModels.shotgun.group, knifeGroup);
+  weaponGroup.add(weaponModels.ak.group, weaponModels.sniper.group, weaponModels.shotgun.group, weaponModels.m200.group, knifeGroup);
   camera.add(weaponGroup);
   camera.add(icecreamGroup);
   syncWeaponModel();
@@ -3168,6 +3206,37 @@ function createSniperModel(materials) {
   muzzleTip.position.set(0, 0.01, -2.34);
   group.add(muzzleTip);
   return { group, muzzleTip, muzzleFlash, muzzleLight };
+}
+
+function createM200Model(materials) {
+  const model = createSniperModel({
+    metal: materials.metal.clone(),
+    darkMetal: materials.darkMetal.clone(),
+    wornMetal: materials.wornMetal.clone(),
+    rubber: materials.rubber.clone(),
+    accent: materials.accent.clone(),
+    lens: materials.lens.clone()
+  });
+  model.group.scale.set(1.06, 1.06, 1.12);
+  // Heavier M200-style barrel and a warm optic tint distinguish the procedural fallback from the AWP.
+  const m200DarkMetal = materials.darkMetal.clone();
+  const m200WornMetal = materials.wornMetal.clone();
+  const m200Rubber = materials.rubber.clone();
+  model.group.add(makeCylinder(0.073, 0.34, [0, 0.01, -2.38], m200DarkMetal, [Math.PI / 2, 0, 0], 32));
+  model.group.add(makeCylinder(0.084, 0.12, [0, 0.01, -2.56], m200WornMetal, [Math.PI / 2, 0, 0], 32));
+  model.group.add(makeRoundedBox(0.23, 0.13, 0.34, [0, -0.1, 0.72], m200Rubber, [0.05, 0, 0], 0.04));
+  model.muzzleFlash.position.z = -2.62;
+  model.muzzleTip.position.z = -2.65;
+  model.group.traverse((child) => {
+    if (!child.isMesh || !child.material?.color) return;
+    const materialsToTune = Array.isArray(child.material) ? child.material : [child.material];
+    materialsToTune.forEach((material) => {
+      if (material.color.getHex() === 0x2c3442) material.color.set('#252b35');
+      if (material.color.getHex() === 0x435067) material.color.set('#587087');
+      if (material.color.getHex() === 0x66d8ff) material.color.set('#f3bd58');
+    });
+  });
+  return model;
 }
 
 function createShotgunModel(materials) {
@@ -5162,6 +5231,7 @@ function normalizeActionKey(event) {
   if (event.code === 'Digit1' || event.key === '1') return 'weapon-ak';
   if (event.code === 'Digit2' || event.key === '2') return 'weapon-sniper';
   if (event.code === 'Digit3' || event.key === '3') return 'weapon-shotgun';
+  if (event.code === 'Digit4' || event.key === '4') return 'weapon-m200';
   if (keyCode === 66) return 'cycle-primary';
   if (keyCode === 81) return 'knife';
   if (keyCode === 69) return 'primary';
@@ -5169,6 +5239,7 @@ function normalizeActionKey(event) {
   if (keyCode === 49) return 'weapon-ak';
   if (keyCode === 50) return 'weapon-sniper';
   if (keyCode === 51) return 'weapon-shotgun';
+  if (keyCode === 52) return 'weapon-m200';
   return '';
 }
 
@@ -5190,7 +5261,7 @@ function handleWeaponAction(action) {
       equipPrimaryWeapon();
       return true;
     }
-    return ['weapon-ak', 'weapon-sniper', 'weapon-shotgun'].includes(action);
+    return ['weapon-ak', 'weapon-sniper', 'weapon-shotgun', 'weapon-m200'].includes(action);
   }
   if (action === 'cycle-primary') {
     cyclePrimaryWeapon();
@@ -5206,6 +5277,10 @@ function handleWeaponAction(action) {
   }
   if (action === 'weapon-shotgun') {
     selectPrimaryWeapon('shotgun');
+    return true;
+  }
+  if (action === 'weapon-m200') {
+    selectPrimaryWeapon('m200');
     return true;
   }
   if (action === 'knife') {
@@ -5289,10 +5364,19 @@ function getCurrentWeapon() {
   return getPrimaryWeapon();
 }
 
+function isScopedWeaponId(id) {
+  return id === 'sniper' || id === 'm200';
+}
+
+function getWeaponFireInterval(weapon) {
+  if (weapon?.id === 'm200') return aimingDownSights ? M200_ADS_FIRE_INTERVAL : M200_FIRE_INTERVAL;
+  return weapon?.fireInterval || AK_FIRE_INTERVAL;
+}
+
 function isSniperScoped() {
   return state === 'running' &&
     equippedSlot === 'primary' &&
-    selectedPrimaryWeapon === 'sniper' &&
+    isScopedWeaponId(selectedPrimaryWeapon) &&
     aimingDownSights &&
     hasGameInput();
 }
@@ -5301,6 +5385,7 @@ function selectPrimaryWeapon(id) {
   if (!WEAPONS[id]) return;
   const fromKnife = equippedSlot === 'knife';
   const changed = equippedSlot !== 'primary' || selectedPrimaryWeapon !== id;
+  const now = performance.now();
   selectedPrimaryWeapon = id;
   storage.settings.primaryWeapon = id;
   saveStorage();
@@ -5310,6 +5395,7 @@ function selectPrimaryWeapon(id) {
   sprayIndex = 0;
   spreadKick = 0;
   shotgunSpinUntil = 0;
+  if (changed && id === 'm200') nextShotAt = now;
   syncWeaponModel();
   if (changed) playWeaponSwitchAnimation(fromKnife ? 115 : WEAPON_SWITCH_DURATION, fromKnife ? 0.34 : 1);
   updateWeaponUi();
@@ -5395,6 +5481,7 @@ function equipPrimaryWeapon() {
   aimingDownSights = false;
   triggerHeld = false;
   shotgunSpinUntil = 0;
+  if (changed && selectedPrimaryWeapon === 'm200') nextShotAt = performance.now();
   syncWeaponModel();
   if (changed) playWeaponSwitchAnimation(fromKnife ? 115 : WEAPON_SWITCH_DURATION, fromKnife ? 0.34 : 1);
   updateWeaponUi();
@@ -5419,7 +5506,7 @@ function syncWeaponModel() {
 function updateWeaponModelVisibility() {
   const hideScopedSniper = isSniperScoped();
   Object.entries(weaponModels).forEach(([id, model]) => {
-    model.group.visible = equippedSlot === 'primary' && id === selectedPrimaryWeapon && !(id === 'sniper' && hideScopedSniper);
+    model.group.visible = equippedSlot === 'primary' && id === selectedPrimaryWeapon && !(isScopedWeaponId(id) && hideScopedSniper);
   });
   if (knifeGroup) knifeGroup.visible = equippedSlot === 'knife';
 }
@@ -5455,7 +5542,7 @@ function updateWeaponUi(now = performance.now()) {
     } else if (isDuelMode() && duel.active) {
       dom.weaponActionHint.textContent = '本条命背包已锁定 · 下次复活后可调整';
     } else {
-      dom.weaponActionHint.textContent = 'Space 跳 · F 雪糕 · B/滚轮/1/2/3 武器 · Q 求生刀 · E 主武器';
+      dom.weaponActionHint.textContent = 'Space 跳 · F 雪糕 · B/滚轮/1/2/3/4 武器 · Q 求生刀 · E 主武器';
     }
   }
   updateIcecreamUi(now);
@@ -5562,7 +5649,7 @@ function fireWeapon(now) {
     return;
   }
   if (now < nextShotAt) return;
-  nextShotAt = now + weapon.fireInterval;
+  nextShotAt = now + getWeaponFireInterval(weapon);
   session.shots += 1;
   sprayIndex += 1;
   spreadKick = Math.min(1, spreadKick + 0.18);
@@ -5604,7 +5691,7 @@ function fireDuelWeapon(now) {
     fireShotgunDuel(now);
     return;
   }
-  nextShotAt = now + weapon.fireInterval;
+  nextShotAt = now + getWeaponFireInterval(weapon);
   sprayIndex += 1;
   spreadKick = Math.min(1, spreadKick + 0.18);
 
@@ -5622,6 +5709,7 @@ function fireDuelWeapon(now) {
     sendLan({
       type: 'shot',
       weapon: weapon.id,
+      ads: aimingDownSights,
       origin: vectorPayload(shot.origin),
       direction: vectorPayload(shot.direction),
       targetId: shot.targetId || ''
@@ -5865,7 +5953,9 @@ function castBallisticShot(spreadOverride = currentSpread()) {
 function currentSpread() {
   if (equippedSlot === 'knife') return 0;
   const weapon = getPrimaryWeapon();
-  if (weapon.id === 'sniper' && aimingDownSights) return SNIPER_ADS_SPREAD;
+  if (isScopedWeaponId(weapon.id) && aimingDownSights) {
+    return weapon.id === 'm200' ? M200_ADS_SPREAD : SNIPER_ADS_SPREAD;
+  }
   const hipSpread = Math.min(weapon.maxSpread, weapon.baseSpread + Math.max(0, sprayIndex - 1) * weapon.spreadStep);
   let spread = hipSpread * THREE.MathUtils.lerp(1, weapon.adsSpreadScale, adsBlend);
   if (isPlayerAirborne()) {
@@ -5879,9 +5969,10 @@ function currentSpread() {
 
 function applyAkRecoil() {
   const weapon = getPrimaryWeapon();
-  if (weapon.id === 'sniper') {
+  if (isScopedWeaponId(weapon.id)) {
     const recoilScale = aimingDownSights ? 0.78 : 1;
-    pitch = THREE.MathUtils.clamp(pitch + SNIPER_RECOIL * recoilScale, -1.06, 1.06);
+    const recoil = weapon.id === 'm200' ? M200_RECOIL : SNIPER_RECOIL;
+    pitch = THREE.MathUtils.clamp(pitch + recoil * recoilScale, -1.06, 1.06);
     yaw += randomBetween(-0.018, 0.018) * recoilScale;
     weaponKick = Math.min(1.65, weaponKick + 0.92);
     applyView();
@@ -6172,7 +6263,7 @@ function updateAimDownSights(delta, snap = false) {
   const targetBlend = aiming ? 1 : 0;
   const weapon = getPrimaryWeapon();
 
-  if (snap || weapon.id === 'sniper') {
+  if (snap || isScopedWeaponId(weapon.id)) {
     adsBlend = targetBlend;
   } else {
     adsBlend = THREE.MathUtils.damp(adsBlend, targetBlend, 17, Math.max(delta, 1 / 240));
@@ -6184,7 +6275,7 @@ function updateAimDownSights(delta, snap = false) {
     camera.updateProjectionMatrix();
   }
   document.body.classList.toggle('is-ads', adsBlend > 0.55);
-  document.body.classList.toggle('is-scoped', aiming && weapon.id === 'sniper');
+  document.body.classList.toggle('is-scoped', aiming && isScopedWeaponId(weapon.id));
   updateWeaponModelVisibility();
 }
 
@@ -7585,7 +7676,7 @@ function animateWeapon(delta, now) {
   }
 
   const weapon = getPrimaryWeapon();
-  const poseBlend = weapon.id === 'sniper' ? 0 : adsBlend;
+  const poseBlend = isScopedWeaponId(weapon.id) ? 0 : adsBlend;
   weaponGroup.position.lerpVectors(weapon.hipPosition, weapon.adsPosition, poseBlend);
   weaponGroup.position.y += weaponKick * THREE.MathUtils.lerp(0.022, 0.012, poseBlend);
   weaponGroup.position.z += weaponKick * THREE.MathUtils.lerp(0.1, 0.052, poseBlend);
@@ -7595,7 +7686,7 @@ function animateWeapon(delta, now) {
     THREE.MathUtils.lerp(weapon.hipRotation.z, weapon.adsRotation.z, poseBlend) + weaponKick * THREE.MathUtils.lerp(0.035, 0.014, poseBlend)
   );
   if (weapon.id === 'shotgun') applyShotgunSpinMotion(now, poseBlend);
-  applyWeaponSwitchMotion(now, weapon.id === 'sniper' ? 1.08 : 1);
+  applyWeaponSwitchMotion(now, isScopedWeaponId(weapon.id) ? 1.08 : 1);
   if (weapon.id === 'ak' && adsBlend > 0.01) alignDetailedAkSightToCrosshair(adsBlend);
   if (muzzleFlash) {
     const flashLive = Math.max(0, muzzleFlashUntil - now) / 42;
@@ -8157,6 +8248,12 @@ function playNoiseBurst(seconds = 0.05, volume = 0.05, filterFrequency = 900) {
 
 function playShotSound(weaponId = 'ak') {
   ensureAudio();
+  if (weaponId === 'm200') {
+    playNoiseBurst(0.14, 0.12, 430);
+    beep(58, 0.14, 'sawtooth', 0.082);
+    beep(112, 0.06, 'square', 0.04);
+    return;
+  }
   if (weaponId === 'sniper') {
     playNoiseBurst(0.09, 0.075, 560);
     beep(76, 0.075, 'sawtooth', 0.05);
