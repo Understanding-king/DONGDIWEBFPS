@@ -311,6 +311,20 @@ const DETAILED_KNIFE_CACHE_NAME = `dongdiwebfps-knife-assets-${DETAILED_KNIFE_CA
 const DETAILED_KNIFE_ATTEMPT_DELAYS = [0, 900, 2600];
 const DETAILED_KNIFE_REQUEST_TIMEOUT_MS = 30000;
 const DETAILED_KNIFE_BACKGROUND_RETRY_MS = 30000;
+const DETAILED_SHOTGUN_ASSET_PATH = '/models/shotgun/';
+const DETAILED_SHOTGUN_ASSETS = [
+  { filename: 'Shotgun.obj', label: '霰弹枪高模', type: 'text' },
+  { filename: 'Shotgun.mtl', label: '霰弹枪材质定义', type: 'text' },
+  { filename: 'Sg_Diffuse.png', label: '霰弹枪颜色贴图', type: 'blob' },
+  { filename: 'Sg_normals.png', label: '霰弹枪法线贴图', type: 'blob' },
+  { filename: 'Sg_Spec.png', label: '霰弹枪高光贴图', type: 'blob' },
+  { filename: 'Dkk.jpg', label: '霰弹枪木托贴图', type: 'blob' }
+];
+const DETAILED_SHOTGUN_CACHE_VERSION = 'v1';
+const DETAILED_SHOTGUN_CACHE_NAME = `dongdiwebfps-shotgun-assets-${DETAILED_SHOTGUN_CACHE_VERSION}`;
+const DETAILED_SHOTGUN_ATTEMPT_DELAYS = [0, 1000, 3000];
+const DETAILED_SHOTGUN_REQUEST_TIMEOUT_MS = 60000;
+const DETAILED_SHOTGUN_BACKGROUND_RETRY_MS = 30000;
 const MATCH_LOADING_MAX_MS = 36000;
 const LAN_LOADING_MAX_MS = 44000;
 // This is the rear-sight groove, not the top edge of the receiver.
@@ -680,6 +694,10 @@ let detailedKnifeLoadState = 'idle';
 let detailedKnifeRetryTimer = null;
 let detailedKnifeLoadPromise = null;
 let detailedKnifeLastError = null;
+let detailedShotgunLoadState = 'idle';
+let detailedShotgunRetryTimer = null;
+let detailedShotgunLoadPromise = null;
+let detailedShotgunLastError = null;
 let detailedAkCachePersistenceRequested = false;
 const accessGate = {
   active: true,
@@ -718,6 +736,16 @@ const detailedKnifeProgress = {
   assetStates: new Map()
 };
 const detailedKnifeProgressListeners = new Set();
+const detailedShotgunProgress = {
+  loadedBytes: 0,
+  totalBytes: 0,
+  completeAssets: 0,
+  activeAsset: '',
+  phase: 'idle',
+  phaseProgress: 0,
+  assetStates: new Map()
+};
+const detailedShotgunProgressListeners = new Set();
 let knifeGroup;
 let icecreamGroup;
 let opponentGroup;
@@ -944,9 +972,11 @@ function init() {
   detailedAkProgressListeners.add(refreshHomeWeaponLoadingUi);
   detailedAwpProgressListeners.add(refreshHomeWeaponLoadingUi);
   detailedKnifeProgressListeners.add(refreshHomeWeaponLoadingUi);
+  detailedShotgunProgressListeners.add(refreshHomeWeaponLoadingUi);
   detailedAkProgressListeners.add(refreshAccessGateUi);
   detailedAwpProgressListeners.add(refreshAccessGateUi);
   detailedKnifeProgressListeners.add(refreshAccessGateUi);
+  detailedShotgunProgressListeners.add(refreshAccessGateUi);
   updateHomeAkLoadingUi(getDetailedWeaponProgressSnapshot());
   updateAccessGateUi(getDetailedWeaponProgressSnapshot());
   ensureDetailedWeaponModels();
@@ -1941,8 +1971,151 @@ async function loadDetailedAkSource() {
   return objectLoader.parse(objectText);
 }
 
+function ensureDetailedShotgunModel() {
+  if (detailedShotgunLoadState === 'ready') return Promise.resolve(true);
+  if (detailedShotgunLoadPromise) return detailedShotgunLoadPromise;
+  detailedShotgunLoadPromise = loadDetailedShotgunModel().finally(() => {
+    detailedShotgunLoadPromise = null;
+  });
+  return detailedShotgunLoadPromise;
+}
+
+async function loadDetailedShotgunModel() {
+  if (!weaponGroup || !camera || detailedShotgunLoadState === 'ready') return detailedShotgunLoadState === 'ready';
+  detailedShotgunLoadState = 'loading';
+  let lastError = null;
+
+  for (const [attemptIndex, delay] of DETAILED_SHOTGUN_ATTEMPT_DELAYS.entries()) {
+    if (delay) await waitForDetailedShotgunRetry(delay);
+    try {
+      resetDetailedShotgunProgress();
+      const object = await loadDetailedShotgunSource();
+      const bounds = new THREE.Box3().setFromObject(object);
+      const size = bounds.getSize(new THREE.Vector3());
+      const center = bounds.getCenter(new THREE.Vector3());
+      if (!size.x || !size.y) throw new Error('Shotgun model has invalid bounds');
+
+      // The source is exported along +X with the muzzle at -X. Map its axes to
+      // the viewmodel convention where the muzzle points down -Z and up is +Y.
+      const scale = 2.9 / size.x;
+      object.scale.setScalar(scale);
+      object.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+        new THREE.Vector3(0, 0, 1),
+        new THREE.Vector3(0, 1, 0),
+        new THREE.Vector3(-1, 0, 0)
+      ));
+      object.position.copy(center.clone().multiplyScalar(-scale).applyQuaternion(object.quaternion));
+      object.userData.isDetailedShotgun = true;
+      object.traverse((child) => {
+        if (!child.isMesh) return;
+        child.frustumCulled = false;
+        child.castShadow = false;
+        child.receiveShadow = false;
+        const sourceMaterials = Array.isArray(child.material) ? child.material : [child.material];
+        sourceMaterials.forEach((material) => {
+          material.side = THREE.DoubleSide;
+          material.needsUpdate = true;
+        });
+      });
+
+      const muzzleRawPosition = new THREE.Vector3(
+        bounds.min.x - size.x * 0.012,
+        center.y + size.y * 0.02,
+        center.z
+      );
+      const muzzleFlash = new THREE.Mesh(
+        new THREE.ConeGeometry(0.23, 0.52, 18, 1, true),
+        createFlashMaterial()
+      );
+      muzzleFlash.rotation.x = -Math.PI / 2;
+      muzzleFlash.position.copy(muzzleRawPosition);
+      muzzleFlash.userData.baseScale = new THREE.Vector3(1 / scale, 1 / scale, 1 / scale);
+      muzzleFlash.scale.copy(muzzleFlash.userData.baseScale);
+      muzzleFlash.visible = false;
+      object.add(muzzleFlash);
+
+      const muzzleLight = new THREE.PointLight('#ffbd5a', 0, 3.2);
+      muzzleLight.position.copy(muzzleRawPosition);
+      object.add(muzzleLight);
+      const muzzleTip = new THREE.Object3D();
+      muzzleTip.position.copy(muzzleRawPosition);
+      object.add(muzzleTip);
+
+      const previous = weaponModels.shotgun;
+      weaponGroup.remove(previous.group);
+      previous.group.visible = false;
+      weaponModels.shotgun = { group: object, muzzleTip, muzzleFlash, muzzleLight, detailed: true };
+      weaponGroup.add(object);
+      syncWeaponModel();
+      refreshWeaponPreviewModels();
+      detailedShotgunLoadState = 'ready';
+      detailedShotgunLastError = null;
+      emitDetailedShotgunProgress();
+      return true;
+    } catch (error) {
+      lastError = error;
+      console.warn(`Detailed shotgun model load attempt ${attemptIndex + 1} failed.`, error);
+    }
+  }
+
+  detailedShotgunLoadState = 'fallback';
+  detailedShotgunLastError = lastError;
+  console.warn('Detailed shotgun model is unavailable for now; using the built-in model and retrying in the background.', lastError);
+  window.clearTimeout(detailedShotgunRetryTimer);
+  detailedShotgunRetryTimer = window.setTimeout(() => {
+    detailedShotgunLoadState = 'idle';
+    ensureDetailedShotgunModel();
+  }, DETAILED_SHOTGUN_BACKGROUND_RETRY_MS);
+  emitDetailedShotgunProgress();
+  return false;
+}
+
+async function loadDetailedShotgunSource() {
+  const assets = await Promise.all(DETAILED_SHOTGUN_ASSETS.map(fetchDetailedShotgunAsset));
+  const assetMap = new Map(assets.map((asset) => [asset.filename, asset.blob]));
+  const materialText = await assetMap.get('Shotgun.mtl').text();
+  const objectText = await assetMap.get('Shotgun.obj').text();
+  setDetailedShotgunPhase('materials');
+
+  const textureManager = new THREE.LoadingManager();
+  const materialLoader = new MTLLoader(textureManager);
+  const materials = materialLoader.parse(materialText, '');
+  // MTLLoader lazily creates its material map; preload it before attaching the
+  // downloaded PBR textures so OBJLoader receives the textured material.
+  materials.preload();
+  const diffuseUrl = URL.createObjectURL(assetMap.get('Sg_Diffuse.png'));
+  const normalUrl = URL.createObjectURL(assetMap.get('Sg_normals.png'));
+  const specUrl = URL.createObjectURL(assetMap.get('Sg_Spec.png'));
+  const textureLoader = new THREE.TextureLoader(textureManager);
+  const [diffuse, normal, spec] = await Promise.all([
+    textureLoader.loadAsync(diffuseUrl),
+    textureLoader.loadAsync(normalUrl),
+    textureLoader.loadAsync(specUrl)
+  ]);
+  diffuse.colorSpace = THREE.SRGBColorSpace;
+  diffuse.anisotropy = Math.min(8, renderer?.capabilities?.getMaxAnisotropy?.() || 1);
+  normal.anisotropy = diffuse.anisotropy;
+  spec.anisotropy = diffuse.anisotropy;
+  const sourceMaterial = materials.materials?.Shotgun_Texture;
+  if (sourceMaterial) {
+    sourceMaterial.map = diffuse;
+    sourceMaterial.normalMap = normal;
+    sourceMaterial.roughnessMap = spec;
+    sourceMaterial.color.set('#ffffff');
+    sourceMaterial.roughness = 0.46;
+    sourceMaterial.metalness = 0.68;
+    sourceMaterial.side = THREE.DoubleSide;
+    sourceMaterial.needsUpdate = true;
+  }
+  setDetailedShotgunPhase('geometry');
+  await nextFrame();
+  const objectLoader = new OBJLoader();
+  objectLoader.setMaterials(materials);
+  return objectLoader.parse(objectText);
+}
+
 function ensureDetailedWeaponModels() {
-  return Promise.all([ensureDetailedAkModel(), ensureDetailedAwpModel(), ensureDetailedKnifeModel()])
+  return Promise.all([ensureDetailedAkModel(), ensureDetailedAwpModel(), ensureDetailedKnifeModel(), ensureDetailedShotgunModel()])
     .then((results) => results.every(Boolean));
 }
 
@@ -2297,6 +2470,43 @@ async function fetchDetailedKnifeAsset(asset) {
   }
 }
 
+async function fetchDetailedShotgunAsset(asset) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), DETAILED_SHOTGUN_REQUEST_TIMEOUT_MS);
+  const state = {
+    filename: asset.filename,
+    label: asset.label,
+    loadedBytes: 0,
+    totalBytes: 0,
+    status: 'loading',
+    source: 'network'
+  };
+  detailedShotgunProgress.assetStates.set(asset.filename, state);
+  emitDetailedShotgunProgress();
+  try {
+    const url = getDetailedShotgunAssetUrl(asset);
+    const cachedResponse = await getCachedDetailedShotgunAsset(url);
+    if (cachedResponse) {
+      state.source = 'cache';
+      emitDetailedShotgunProgress();
+      const blob = await readDetailedShotgunAssetResponse(cachedResponse, state);
+      return { filename: asset.filename, blob };
+    }
+
+    const response = await fetch(url, { cache: 'force-cache', signal: controller.signal });
+    if (!response.ok) throw new Error(`Shotgun asset request failed: ${asset.filename} (${response.status})`);
+    const blob = await readDetailedShotgunAssetResponse(response, state);
+    await cacheDetailedShotgunAsset(url, blob, response.headers.get('content-type'));
+    return { filename: asset.filename, blob };
+  } catch (error) {
+    state.status = 'error';
+    emitDetailedShotgunProgress();
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 function getDetailedAkAssetUrl(asset) {
   const path = `${DETAILED_AK_ASSET_PATH}${asset.filename}`;
   const url = new URL(path, window.location.origin);
@@ -2315,6 +2525,13 @@ function getDetailedKnifeAssetUrl(asset) {
   const path = `${DETAILED_KNIFE_ASSET_PATH}${asset.filename}`;
   const url = new URL(path, window.location.origin);
   url.searchParams.set('v', DETAILED_KNIFE_CACHE_VERSION);
+  return url.toString();
+}
+
+function getDetailedShotgunAssetUrl(asset) {
+  const path = `${DETAILED_SHOTGUN_ASSET_PATH}${asset.filename}`;
+  const url = new URL(path, window.location.origin);
+  url.searchParams.set('v', DETAILED_SHOTGUN_CACHE_VERSION);
   return url.toString();
 }
 
@@ -2347,6 +2564,17 @@ async function getCachedDetailedKnifeAsset(url) {
     return await cache.match(url);
   } catch (error) {
     console.warn('Survival Knife local cache is unavailable; using network assets.', error);
+    return null;
+  }
+}
+
+async function getCachedDetailedShotgunAsset(url) {
+  if (!window.caches?.open) return null;
+  try {
+    const cache = await window.caches.open(DETAILED_SHOTGUN_CACHE_NAME);
+    return await cache.match(url);
+  } catch (error) {
+    console.warn('Shotgun local cache is unavailable; using network assets.', error);
     return null;
   }
 }
@@ -2393,6 +2621,21 @@ async function cacheDetailedKnifeAsset(url, blob, contentType) {
     requestDetailedAkStoragePersistence();
   } catch (error) {
     console.warn('Survival Knife downloaded but could not be saved locally.', error);
+  }
+}
+
+async function cacheDetailedShotgunAsset(url, blob, contentType) {
+  if (!window.caches?.open) return;
+  try {
+    const cache = await window.caches.open(DETAILED_SHOTGUN_CACHE_NAME);
+    const headers = new Headers({
+      'content-length': String(blob.size),
+      'content-type': contentType || blob.type || 'application/octet-stream'
+    });
+    await cache.put(url, new Response(blob, { headers }));
+    requestDetailedAkStoragePersistence();
+  } catch (error) {
+    console.warn('Shotgun asset downloaded but could not be saved locally.', error);
   }
 }
 
@@ -2499,6 +2742,36 @@ async function readDetailedKnifeAssetResponse(response, state) {
   state.totalBytes ||= blob.size;
   state.status = 'ready';
   emitDetailedKnifeProgress();
+  return blob;
+}
+
+async function readDetailedShotgunAssetResponse(response, state) {
+  const contentLength = Number(response.headers.get('content-length')) || 0;
+  state.totalBytes = contentLength;
+  if (!response.body) {
+    const blob = await response.blob();
+    state.loadedBytes = blob.size;
+    state.totalBytes ||= blob.size;
+    state.status = 'ready';
+    emitDetailedShotgunProgress();
+    return blob;
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let received = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.byteLength;
+    state.loadedBytes = received;
+    emitDetailedShotgunProgress();
+  }
+  const blob = new Blob(chunks, { type: response.headers.get('content-type') || '' });
+  state.loadedBytes = blob.size;
+  state.totalBytes ||= blob.size;
+  state.status = 'ready';
+  emitDetailedShotgunProgress();
   return blob;
 }
 
@@ -2634,6 +2907,17 @@ function resetDetailedKnifeProgress() {
   emitDetailedKnifeProgress();
 }
 
+function resetDetailedShotgunProgress() {
+  detailedShotgunProgress.loadedBytes = 0;
+  detailedShotgunProgress.totalBytes = 0;
+  detailedShotgunProgress.completeAssets = 0;
+  detailedShotgunProgress.activeAsset = '';
+  detailedShotgunProgress.phase = 'download';
+  detailedShotgunProgress.phaseProgress = 0;
+  detailedShotgunProgress.assetStates.clear();
+  emitDetailedShotgunProgress();
+}
+
 function setDetailedAkPhase(phase, phaseProgress = 0) {
   detailedAkProgress.phase = phase;
   detailedAkProgress.phaseProgress = THREE.MathUtils.clamp(phaseProgress, 0, 1);
@@ -2650,6 +2934,12 @@ function setDetailedKnifePhase(phase, phaseProgress = 0) {
   detailedKnifeProgress.phase = phase;
   detailedKnifeProgress.phaseProgress = THREE.MathUtils.clamp(phaseProgress, 0, 1);
   emitDetailedKnifeProgress();
+}
+
+function setDetailedShotgunPhase(phase, phaseProgress = 0) {
+  detailedShotgunProgress.phase = phase;
+  detailedShotgunProgress.phaseProgress = THREE.MathUtils.clamp(phaseProgress, 0, 1);
+  emitDetailedShotgunProgress();
 }
 
 function getDetailedAkProgressSnapshot() {
@@ -2712,6 +3002,26 @@ function getDetailedKnifeProgressSnapshot() {
   };
 }
 
+function getDetailedShotgunProgressSnapshot() {
+  const assets = Array.from(detailedShotgunProgress.assetStates.values()).map((asset) => ({ ...asset }));
+  const loadedBytes = assets.reduce((sum, asset) => sum + asset.loadedBytes, 0);
+  const totalBytes = assets.reduce((sum, asset) => sum + asset.totalBytes, 0);
+  const completeAssets = assets.filter((asset) => asset.status === 'ready').length;
+  const activeAsset = assets.find((asset) => asset.status === 'loading')?.label || '';
+  return {
+    state: detailedShotgunLoadState,
+    loadedBytes,
+    totalBytes,
+    completeAssets,
+    totalAssets: DETAILED_SHOTGUN_ASSETS.length,
+    activeAsset,
+    phase: detailedShotgunProgress.phase,
+    phaseProgress: detailedShotgunProgress.phaseProgress,
+    assets,
+    error: detailedShotgunLastError
+  };
+}
+
 function emitDetailedAkProgress() {
   const snapshot = getDetailedAkProgressSnapshot();
   detailedAkProgressListeners.forEach((listener) => listener(snapshot));
@@ -2727,30 +3037,36 @@ function emitDetailedKnifeProgress() {
   detailedKnifeProgressListeners.forEach((listener) => listener(snapshot));
 }
 
+function emitDetailedShotgunProgress() {
+  const snapshot = getDetailedShotgunProgressSnapshot();
+  detailedShotgunProgressListeners.forEach((listener) => listener(snapshot));
+}
+
 function getDetailedWeaponAssets() {
-  return DETAILED_AK_ASSETS.concat(DETAILED_AWP_ASSETS, DETAILED_KNIFE_ASSETS);
+  return DETAILED_AK_ASSETS.concat(DETAILED_AWP_ASSETS, DETAILED_KNIFE_ASSETS, DETAILED_SHOTGUN_ASSETS);
 }
 
 function areDetailedWeaponModelsReady() {
-  return detailedAkLoadState === 'ready' && detailedAwpLoadState === 'ready' && detailedKnifeLoadState === 'ready';
+  return detailedAkLoadState === 'ready' && detailedAwpLoadState === 'ready' && detailedKnifeLoadState === 'ready' && detailedShotgunLoadState === 'ready';
 }
 
 function getDetailedWeaponProgressSnapshot() {
   const ak = getDetailedAkProgressSnapshot();
   const awp = getDetailedAwpProgressSnapshot();
   const knife = getDetailedKnifeProgressSnapshot();
-  const pending = [ak, awp, knife].find((snapshot) => snapshot.state !== 'ready') || knife;
-  const assets = ak.assets.concat(awp.assets, knife.assets);
+  const shotgun = getDetailedShotgunProgressSnapshot();
+  const pending = [ak, awp, knife, shotgun].find((snapshot) => snapshot.state !== 'ready') || shotgun;
+  const assets = ak.assets.concat(awp.assets, knife.assets, shotgun.assets);
   const allReady = areDetailedWeaponModelsReady();
-  const anyFallback = [ak, awp, knife].some((snapshot) => snapshot.state === 'fallback');
-  const anyLoading = [ak, awp, knife].some((snapshot) => snapshot.state === 'loading');
+  const anyFallback = [ak, awp, knife, shotgun].some((snapshot) => snapshot.state === 'fallback');
+  const anyLoading = [ak, awp, knife, shotgun].some((snapshot) => snapshot.state === 'loading');
 
   return {
     state: allReady ? 'ready' : anyFallback ? 'fallback' : anyLoading ? 'loading' : pending.state,
-    loadedBytes: ak.loadedBytes + awp.loadedBytes + knife.loadedBytes,
-    totalBytes: ak.totalBytes + awp.totalBytes + knife.totalBytes,
-    completeAssets: ak.completeAssets + awp.completeAssets + knife.completeAssets,
-    totalAssets: ak.totalAssets + awp.totalAssets + knife.totalAssets,
+    loadedBytes: ak.loadedBytes + awp.loadedBytes + knife.loadedBytes + shotgun.loadedBytes,
+    totalBytes: ak.totalBytes + awp.totalBytes + knife.totalBytes + shotgun.totalBytes,
+    completeAssets: ak.completeAssets + awp.completeAssets + knife.completeAssets + shotgun.completeAssets,
+    totalAssets: ak.totalAssets + awp.totalAssets + knife.totalAssets + shotgun.totalAssets,
     activeAsset: pending.activeAsset,
     phase: pending.phase,
     phaseProgress: pending.phaseProgress,
@@ -2771,8 +3087,8 @@ function getDetailedAkProgressLabel(snapshot, progress) {
     const loadedFromCache = snapshot.assets.length === getDetailedWeaponAssets().length
       && snapshot.assets.every((asset) => asset.source === 'cache');
     return loadedFromCache
-      ? 'AK、AWP 与 Survival Knife 高模已从本机缓存加载'
-      : 'AK、AWP 与 Survival Knife 高模、材质和贴图已就绪';
+      ? 'AK、AWP、霰弹枪与 Survival Knife 高模已从本机缓存加载'
+      : 'AK、AWP、霰弹枪与 Survival Knife 高模、材质和贴图已就绪';
   }
   if (snapshot.state === 'fallback') return '高模同步尚未完成，正在后台重试';
   if (snapshot.phase === 'materials') return '文件下载完成，正在解码材质与贴图';
@@ -2814,6 +3130,7 @@ function beginMatchLoading(intent) {
   detailedAkProgressListeners.add(refreshMatchLoadingUi);
   detailedAwpProgressListeners.add(refreshMatchLoadingUi);
   detailedKnifeProgressListeners.add(refreshMatchLoadingUi);
+  detailedShotgunProgressListeners.add(refreshMatchLoadingUi);
   updateMatchLoadingUi(getDetailedWeaponProgressSnapshot());
 
   matchLoading.timeoutId = window.setTimeout(() => {
@@ -2869,6 +3186,7 @@ function closeMatchLoading() {
   detailedAkProgressListeners.delete(refreshMatchLoadingUi);
   detailedAwpProgressListeners.delete(refreshMatchLoadingUi);
   detailedKnifeProgressListeners.delete(refreshMatchLoadingUi);
+  detailedShotgunProgressListeners.delete(refreshMatchLoadingUi);
   matchLoading.active = false;
   matchLoading.intent = '';
   matchLoading.startedAt = 0;
@@ -2984,6 +3302,10 @@ function waitForDetailedAwpRetry(delay) {
 }
 
 function waitForDetailedKnifeRetry(delay) {
+  return new Promise((resolve) => window.setTimeout(resolve, delay));
+}
+
+function waitForDetailedShotgunRetry(delay) {
   return new Promise((resolve) => window.setTimeout(resolve, delay));
 }
 
@@ -5732,7 +6054,7 @@ function fireShotgunRange(now) {
   showMuzzleFlash(now);
   playShotSound(weapon.id);
   applyAkRecoil();
-  triggerShotgunSpin(now);
+  if (!aimingDownSights) triggerShotgunSpin(now);
   pellets.forEach((pellet) => {
     spawnTracer(pellet.start, pellet.end, pellet.targetHit);
     if (!pellet.targetHit) spawnImpact(pellet.end, pellet.normal);
@@ -5771,7 +6093,7 @@ function fireShotgunDuel(now) {
   showMuzzleFlash(now);
   playShotSound(weapon.id);
   applyAkRecoil();
-  triggerShotgunSpin(now);
+  if (!aimingDownSights) triggerShotgunSpin(now);
 
   let totalDamage = 0;
   let headshot = false;
@@ -7733,6 +8055,11 @@ function animateIcecream(now) {
 }
 
 function applyShotgunSpinMotion(now, poseBlend = 0) {
+  if (aimingDownSights) {
+    shotgunSpinUntil = 0;
+    resetShotgunPump();
+    return;
+  }
   if (now >= shotgunSpinUntil || shotgunSpinUntil <= shotgunSpinStartedAt) {
     resetShotgunPump();
     return;
@@ -7901,7 +8228,8 @@ function exposeDebugState() {
           detailedModels: {
             ak: detailedAkLoadState,
             awp: detailedAwpLoadState,
-            knife: detailedKnifeLoadState
+            knife: detailedKnifeLoadState,
+            shotgun: detailedShotgunLoadState
           },
           knifeViewBounds: getViewBounds(knifeGroup)
         },
