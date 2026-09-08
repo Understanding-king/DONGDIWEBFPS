@@ -299,7 +299,7 @@ async function cloudRequest(path, { method, body }) {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload?.msg || payload?.error_description || payload?.message || '账号服务请求失败。');
+    throw new Error(formatCloudError(payload, response.status));
   }
   return payload;
 }
@@ -316,7 +316,7 @@ async function cloudPublicRequest(path, { method, body }) {
     body: body ? JSON.stringify(body) : undefined
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload?.message || payload?.hint || '排行榜请求失败。');
+  if (!response.ok) throw new Error(formatCloudError(payload, response.status, '排行榜请求失败。'));
   return payload;
 }
 
@@ -415,8 +415,31 @@ async function cloudProfileRequest(path, { method, body, prefer = '' }) {
     body: body ? JSON.stringify(body) : undefined
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload?.message || payload?.hint || '云端档案同步失败。');
+  if (!response.ok) throw new Error(formatCloudError(payload, response.status, '云端档案同步失败。'));
   return payload;
+}
+
+function formatCloudError(payload, status, fallback = '账号服务请求失败。') {
+  const raw = String(payload?.msg || payload?.error_description || payload?.message || payload?.hint || '').trim();
+  const normalized = raw.toLowerCase();
+  if (normalized.includes('user already registered') || normalized.includes('already been registered')) {
+    return '这个邮箱已经注册过了，请直接登录。';
+  }
+  if (normalized.includes('email rate limit') || normalized.includes('rate limit')) {
+    return '注册邮件发送太频繁，请等待几分钟后再试。';
+  }
+  if (normalized.includes('email not confirmed')) {
+    return '邮箱还没有确认，请先点击确认邮件，再回来登录。';
+  }
+  if (normalized.includes('invalid login credentials')) {
+    return '邮箱或密码不正确。';
+  }
+  if (normalized.includes('password') && (normalized.includes('weak') || normalized.includes('at least'))) {
+    return '密码强度不足，请使用至少 8 位密码。';
+  }
+  if (status === 429) return '请求太频繁，请稍后再试。';
+  if (status === 401 || status === 403) return '账号权限不足或登录已过期，请重新登录。';
+  return raw || fallback;
 }
 
 function readLocalProfile() {

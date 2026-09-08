@@ -85,8 +85,9 @@ Vercel 部署的是静态前端，训练、BOT 对战、首页、仓库、商店
 3. `supabase/migrations/202609030001_cloud_friend_codes.sql`
 4. `supabase/migrations/202609030002_account_roles.sql`
 5. `supabase/migrations/202609040001_range_leaderboard.sql`
+6. `supabase/migrations/202609080001_fix_account_admin_rpc.sql`
 
-第三份迁移会添加 12 位好友码以及仅登录用户可调用的好友查询、添加和删除 RPC。第四份迁移启用管理员角色，第五份迁移添加六向球靶的公开排行榜和仅登录用户可提交的最好成绩。登录后会从 `profiles` 表恢复档案和云端好友列表；未配置云端时仍保持本地档案模式。
+第三份迁移会添加 12 位好友码以及仅登录用户可调用的好友查询、添加和删除 RPC。第四份迁移启用管理员角色，第五份迁移添加六向球靶的公开排行榜和仅登录用户可提交的最好成绩。第六份迁移修复账号管理 RPC 中 `role` 字段歧义导致的保存失败。登录后会从 `profiles` 表恢复档案和云端好友列表；未配置云端时仍保持本地档案模式。
 
 角色和三个特殊账号的准备方式见 [`docs/special-accounts.md`](docs/special-accounts.md)。普通玩家仍可自行注册，管理员和懂帝权限由数据库角色控制。
 
