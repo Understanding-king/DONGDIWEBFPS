@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {
   ArrowLeft,
   Bot,
@@ -325,6 +326,16 @@ const DETAILED_SHOTGUN_CACHE_NAME = `dongdiwebfps-shotgun-assets-${DETAILED_SHOT
 const DETAILED_SHOTGUN_ATTEMPT_DELAYS = [0, 1000, 3000];
 const DETAILED_SHOTGUN_REQUEST_TIMEOUT_MS = 60000;
 const DETAILED_SHOTGUN_BACKGROUND_RETRY_MS = 30000;
+const DETAILED_M200_ASSET_PATH = '/models/m200-huanshen/';
+const DETAILED_M200_ASSETS = [
+  { filename: 'M200.glb', label: 'M200 幻神高模', type: 'blob' }
+];
+const DETAILED_M200_CACHE_VERSION = 'v1';
+const DETAILED_M200_CACHE_NAME = `dongdiwebfps-m200-assets-${DETAILED_M200_CACHE_VERSION}`;
+const DETAILED_M200_ATTEMPT_DELAYS = [0, 1200, 3600];
+const DETAILED_M200_REQUEST_TIMEOUT_MS = 60000;
+const DETAILED_M200_BACKGROUND_RETRY_MS = 30000;
+const DETAILED_M200_MUZZLE_FORWARD_OFFSET = 0.06;
 const MATCH_LOADING_MAX_MS = 36000;
 const LAN_LOADING_MAX_MS = 44000;
 // This is the rear-sight groove, not the top edge of the receiver.
@@ -698,6 +709,10 @@ let detailedShotgunLoadState = 'idle';
 let detailedShotgunRetryTimer = null;
 let detailedShotgunLoadPromise = null;
 let detailedShotgunLastError = null;
+let detailedM200LoadState = 'idle';
+let detailedM200RetryTimer = null;
+let detailedM200LoadPromise = null;
+let detailedM200LastError = null;
 let detailedAkCachePersistenceRequested = false;
 const accessGate = {
   active: true,
@@ -746,6 +761,16 @@ const detailedShotgunProgress = {
   assetStates: new Map()
 };
 const detailedShotgunProgressListeners = new Set();
+const detailedM200Progress = {
+  loadedBytes: 0,
+  totalBytes: 0,
+  completeAssets: 0,
+  activeAsset: '',
+  phase: 'idle',
+  phaseProgress: 0,
+  assetStates: new Map()
+};
+const detailedM200ProgressListeners = new Set();
 let knifeGroup;
 let icecreamGroup;
 let opponentGroup;
@@ -973,10 +998,12 @@ function init() {
   detailedAwpProgressListeners.add(refreshHomeWeaponLoadingUi);
   detailedKnifeProgressListeners.add(refreshHomeWeaponLoadingUi);
   detailedShotgunProgressListeners.add(refreshHomeWeaponLoadingUi);
+  detailedM200ProgressListeners.add(refreshHomeWeaponLoadingUi);
   detailedAkProgressListeners.add(refreshAccessGateUi);
   detailedAwpProgressListeners.add(refreshAccessGateUi);
   detailedKnifeProgressListeners.add(refreshAccessGateUi);
   detailedShotgunProgressListeners.add(refreshAccessGateUi);
+  detailedM200ProgressListeners.add(refreshAccessGateUi);
   updateHomeAkLoadingUi(getDetailedWeaponProgressSnapshot());
   updateAccessGateUi(getDetailedWeaponProgressSnapshot());
   ensureDetailedWeaponModels();
@@ -2114,8 +2141,109 @@ async function loadDetailedShotgunSource() {
   return objectLoader.parse(objectText);
 }
 
+function ensureDetailedM200Model() {
+  if (detailedM200LoadState === 'ready') return Promise.resolve(true);
+  if (detailedM200LoadPromise) return detailedM200LoadPromise;
+  detailedM200LoadPromise = loadDetailedM200Model().finally(() => {
+    detailedM200LoadPromise = null;
+  });
+  return detailedM200LoadPromise;
+}
+
+async function loadDetailedM200Model() {
+  if (!weaponGroup || !camera || detailedM200LoadState === 'ready') return detailedM200LoadState === 'ready';
+  detailedM200LoadState = 'loading';
+  let lastError = null;
+
+  for (const [attemptIndex, delay] of DETAILED_M200_ATTEMPT_DELAYS.entries()) {
+    if (delay) await waitForDetailedM200Retry(delay);
+    try {
+      resetDetailedM200Progress();
+      const asset = await fetchDetailedM200Asset(DETAILED_M200_ASSETS[0]);
+      const objectUrl = URL.createObjectURL(asset.blob);
+      let gltf;
+      try {
+        const loader = new GLTFLoader();
+        gltf = await loader.loadAsync(objectUrl);
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+
+      const object = gltf.scene;
+      const bounds = new THREE.Box3().setFromObject(object);
+      const size = bounds.getSize(new THREE.Vector3());
+      const center = bounds.getCenter(new THREE.Vector3());
+      if (!size.z || !size.x) throw new Error('M200 model has invalid bounds');
+
+      // The exported Blender scene is already aligned with the viewmodel axis:
+      // the stock is +Z and the muzzle points toward -Z.
+      const scale = 3.18 / size.z;
+      object.scale.setScalar(scale);
+      object.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+      object.userData.isDetailedM200 = true;
+      object.traverse((child) => {
+        if (!child.isMesh) return;
+        child.frustumCulled = false;
+        child.castShadow = false;
+        child.receiveShadow = false;
+        const sourceMaterials = Array.isArray(child.material) ? child.material : [child.material];
+        sourceMaterials.forEach((material) => {
+          material.side = THREE.DoubleSide;
+          if (material.map) material.map.colorSpace = THREE.SRGBColorSpace;
+          material.needsUpdate = true;
+        });
+      });
+
+      const muzzleFlash = new THREE.Mesh(
+        new THREE.ConeGeometry(0.18, 0.54, 18, 1, true),
+        createFlashMaterial()
+      );
+      muzzleFlash.rotation.x = -Math.PI / 2;
+      // The exported body includes the suppressor; place the effect just beyond
+      // its front face so tracers and flash originate from the visible muzzle.
+      muzzleFlash.position.set(0, 0, -size.z * scale * 0.5 - DETAILED_M200_MUZZLE_FORWARD_OFFSET);
+      muzzleFlash.userData.baseScale = new THREE.Vector3(1, 1, 1);
+      muzzleFlash.visible = false;
+      object.add(muzzleFlash);
+
+      const muzzleLight = new THREE.PointLight('#ffbd5a', 0, 3.4);
+      muzzleLight.position.copy(muzzleFlash.position);
+      object.add(muzzleLight);
+      const muzzleTip = new THREE.Object3D();
+      muzzleTip.position.set(0, 0, -size.z * scale * 0.5 - DETAILED_M200_MUZZLE_FORWARD_OFFSET - 0.03);
+      object.add(muzzleTip);
+
+      const previous = weaponModels.m200;
+      weaponGroup.remove(previous.group);
+      previous.group.visible = false;
+      weaponModels.m200 = { group: object, muzzleTip, muzzleFlash, muzzleLight, detailed: true };
+      weaponGroup.add(object);
+      syncWeaponModel();
+      refreshWeaponPreviewModels();
+      detailedM200LoadState = 'ready';
+      detailedM200LastError = null;
+      emitDetailedM200Progress();
+      return true;
+    } catch (error) {
+      lastError = error;
+      console.warn(`Detailed M200 model load attempt ${attemptIndex + 1} failed.`, error);
+    }
+  }
+
+  detailedM200LoadState = 'fallback';
+  detailedM200LastError = lastError;
+  console.warn('Detailed M200 model is unavailable for now; using the built-in model and retrying in the background.', lastError);
+  window.clearTimeout(detailedM200RetryTimer);
+  detailedM200RetryTimer = window.setTimeout(() => {
+    detailedM200LoadState = 'idle';
+    ensureDetailedM200Model();
+  }, DETAILED_M200_BACKGROUND_RETRY_MS);
+  emitDetailedM200Progress();
+  return false;
+}
+
 function ensureDetailedWeaponModels() {
-  return Promise.all([ensureDetailedAkModel(), ensureDetailedAwpModel(), ensureDetailedKnifeModel(), ensureDetailedShotgunModel()])
+  return Promise.all([ensureDetailedAkModel(), ensureDetailedAwpModel(), ensureDetailedKnifeModel(), ensureDetailedShotgunModel(), ensureDetailedM200Model()])
     .then((results) => results.every(Boolean));
 }
 
@@ -2507,6 +2635,42 @@ async function fetchDetailedShotgunAsset(asset) {
   }
 }
 
+async function fetchDetailedM200Asset(asset) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), DETAILED_M200_REQUEST_TIMEOUT_MS);
+  const state = {
+    filename: asset.filename,
+    label: asset.label,
+    loadedBytes: 0,
+    totalBytes: 0,
+    status: 'loading',
+    source: 'network'
+  };
+  detailedM200Progress.assetStates.set(asset.filename, state);
+  emitDetailedM200Progress();
+  try {
+    const url = getDetailedM200AssetUrl(asset);
+    const cachedResponse = await getCachedDetailedM200Asset(url);
+    if (cachedResponse) {
+      state.source = 'cache';
+      emitDetailedM200Progress();
+      const blob = await readDetailedM200AssetResponse(cachedResponse, state);
+      return { filename: asset.filename, blob };
+    }
+    const response = await fetch(url, { cache: 'force-cache', signal: controller.signal });
+    if (!response.ok) throw new Error(`M200 asset request failed: ${asset.filename} (${response.status})`);
+    const blob = await readDetailedM200AssetResponse(response, state);
+    await cacheDetailedM200Asset(url, blob, response.headers.get('content-type'));
+    return { filename: asset.filename, blob };
+  } catch (error) {
+    state.status = 'error';
+    emitDetailedM200Progress();
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 function getDetailedAkAssetUrl(asset) {
   const path = `${DETAILED_AK_ASSET_PATH}${asset.filename}`;
   const url = new URL(path, window.location.origin);
@@ -2532,6 +2696,13 @@ function getDetailedShotgunAssetUrl(asset) {
   const path = `${DETAILED_SHOTGUN_ASSET_PATH}${asset.filename}`;
   const url = new URL(path, window.location.origin);
   url.searchParams.set('v', DETAILED_SHOTGUN_CACHE_VERSION);
+  return url.toString();
+}
+
+function getDetailedM200AssetUrl(asset) {
+  const path = `${DETAILED_M200_ASSET_PATH}${asset.filename}`;
+  const url = new URL(path, window.location.origin);
+  url.searchParams.set('v', DETAILED_M200_CACHE_VERSION);
   return url.toString();
 }
 
@@ -2575,6 +2746,17 @@ async function getCachedDetailedShotgunAsset(url) {
     return await cache.match(url);
   } catch (error) {
     console.warn('Shotgun local cache is unavailable; using network assets.', error);
+    return null;
+  }
+}
+
+async function getCachedDetailedM200Asset(url) {
+  if (!window.caches?.open) return null;
+  try {
+    const cache = await window.caches.open(DETAILED_M200_CACHE_NAME);
+    return await cache.match(url);
+  } catch (error) {
+    console.warn('M200 local cache is unavailable; using network assets.', error);
     return null;
   }
 }
@@ -2636,6 +2818,21 @@ async function cacheDetailedShotgunAsset(url, blob, contentType) {
     requestDetailedAkStoragePersistence();
   } catch (error) {
     console.warn('Shotgun asset downloaded but could not be saved locally.', error);
+  }
+}
+
+async function cacheDetailedM200Asset(url, blob, contentType) {
+  if (!window.caches?.open) return;
+  try {
+    const cache = await window.caches.open(DETAILED_M200_CACHE_NAME);
+    const headers = new Headers({
+      'content-length': String(blob.size),
+      'content-type': contentType || blob.type || 'model/gltf-binary'
+    });
+    await cache.put(url, new Response(blob, { headers }));
+    requestDetailedAkStoragePersistence();
+  } catch (error) {
+    console.warn('M200 asset downloaded but could not be saved locally.', error);
   }
 }
 
@@ -2772,6 +2969,36 @@ async function readDetailedShotgunAssetResponse(response, state) {
   state.totalBytes ||= blob.size;
   state.status = 'ready';
   emitDetailedShotgunProgress();
+  return blob;
+}
+
+async function readDetailedM200AssetResponse(response, state) {
+  const contentLength = Number(response.headers.get('content-length')) || 0;
+  state.totalBytes = contentLength;
+  if (!response.body) {
+    const blob = await response.blob();
+    state.loadedBytes = blob.size;
+    state.totalBytes ||= blob.size;
+    state.status = 'ready';
+    emitDetailedM200Progress();
+    return blob;
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let received = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.byteLength;
+    state.loadedBytes = received;
+    emitDetailedM200Progress();
+  }
+  const blob = new Blob(chunks, { type: response.headers.get('content-type') || 'model/gltf-binary' });
+  state.loadedBytes = blob.size;
+  state.totalBytes ||= blob.size;
+  state.status = 'ready';
+  emitDetailedM200Progress();
   return blob;
 }
 
@@ -2918,6 +3145,17 @@ function resetDetailedShotgunProgress() {
   emitDetailedShotgunProgress();
 }
 
+function resetDetailedM200Progress() {
+  detailedM200Progress.loadedBytes = 0;
+  detailedM200Progress.totalBytes = 0;
+  detailedM200Progress.completeAssets = 0;
+  detailedM200Progress.activeAsset = '';
+  detailedM200Progress.phase = 'download';
+  detailedM200Progress.phaseProgress = 0;
+  detailedM200Progress.assetStates.clear();
+  emitDetailedM200Progress();
+}
+
 function setDetailedAkPhase(phase, phaseProgress = 0) {
   detailedAkProgress.phase = phase;
   detailedAkProgress.phaseProgress = THREE.MathUtils.clamp(phaseProgress, 0, 1);
@@ -2940,6 +3178,12 @@ function setDetailedShotgunPhase(phase, phaseProgress = 0) {
   detailedShotgunProgress.phase = phase;
   detailedShotgunProgress.phaseProgress = THREE.MathUtils.clamp(phaseProgress, 0, 1);
   emitDetailedShotgunProgress();
+}
+
+function setDetailedM200Phase(phase, phaseProgress = 0) {
+  detailedM200Progress.phase = phase;
+  detailedM200Progress.phaseProgress = THREE.MathUtils.clamp(phaseProgress, 0, 1);
+  emitDetailedM200Progress();
 }
 
 function getDetailedAkProgressSnapshot() {
@@ -3022,6 +3266,26 @@ function getDetailedShotgunProgressSnapshot() {
   };
 }
 
+function getDetailedM200ProgressSnapshot() {
+  const assets = Array.from(detailedM200Progress.assetStates.values()).map((asset) => ({ ...asset }));
+  const loadedBytes = assets.reduce((sum, asset) => sum + asset.loadedBytes, 0);
+  const totalBytes = assets.reduce((sum, asset) => sum + asset.totalBytes, 0);
+  const completeAssets = assets.filter((asset) => asset.status === 'ready').length;
+  const activeAsset = assets.find((asset) => asset.status === 'loading')?.label || '';
+  return {
+    state: detailedM200LoadState,
+    loadedBytes,
+    totalBytes,
+    completeAssets,
+    totalAssets: DETAILED_M200_ASSETS.length,
+    activeAsset,
+    phase: detailedM200Progress.phase,
+    phaseProgress: detailedM200Progress.phaseProgress,
+    assets,
+    error: detailedM200LastError
+  };
+}
+
 function emitDetailedAkProgress() {
   const snapshot = getDetailedAkProgressSnapshot();
   detailedAkProgressListeners.forEach((listener) => listener(snapshot));
@@ -3042,12 +3306,17 @@ function emitDetailedShotgunProgress() {
   detailedShotgunProgressListeners.forEach((listener) => listener(snapshot));
 }
 
+function emitDetailedM200Progress() {
+  const snapshot = getDetailedM200ProgressSnapshot();
+  detailedM200ProgressListeners.forEach((listener) => listener(snapshot));
+}
+
 function getDetailedWeaponAssets() {
-  return DETAILED_AK_ASSETS.concat(DETAILED_AWP_ASSETS, DETAILED_KNIFE_ASSETS, DETAILED_SHOTGUN_ASSETS);
+  return DETAILED_AK_ASSETS.concat(DETAILED_AWP_ASSETS, DETAILED_KNIFE_ASSETS, DETAILED_SHOTGUN_ASSETS, DETAILED_M200_ASSETS);
 }
 
 function areDetailedWeaponModelsReady() {
-  return detailedAkLoadState === 'ready' && detailedAwpLoadState === 'ready' && detailedKnifeLoadState === 'ready' && detailedShotgunLoadState === 'ready';
+  return detailedAkLoadState === 'ready' && detailedAwpLoadState === 'ready' && detailedKnifeLoadState === 'ready' && detailedShotgunLoadState === 'ready' && detailedM200LoadState === 'ready';
 }
 
 function getDetailedWeaponProgressSnapshot() {
@@ -3055,18 +3324,19 @@ function getDetailedWeaponProgressSnapshot() {
   const awp = getDetailedAwpProgressSnapshot();
   const knife = getDetailedKnifeProgressSnapshot();
   const shotgun = getDetailedShotgunProgressSnapshot();
-  const pending = [ak, awp, knife, shotgun].find((snapshot) => snapshot.state !== 'ready') || shotgun;
-  const assets = ak.assets.concat(awp.assets, knife.assets, shotgun.assets);
+  const m200 = getDetailedM200ProgressSnapshot();
+  const pending = [ak, awp, knife, shotgun, m200].find((snapshot) => snapshot.state !== 'ready') || m200;
+  const assets = ak.assets.concat(awp.assets, knife.assets, shotgun.assets, m200.assets);
   const allReady = areDetailedWeaponModelsReady();
-  const anyFallback = [ak, awp, knife, shotgun].some((snapshot) => snapshot.state === 'fallback');
-  const anyLoading = [ak, awp, knife, shotgun].some((snapshot) => snapshot.state === 'loading');
+  const anyFallback = [ak, awp, knife, shotgun, m200].some((snapshot) => snapshot.state === 'fallback');
+  const anyLoading = [ak, awp, knife, shotgun, m200].some((snapshot) => snapshot.state === 'loading');
 
   return {
     state: allReady ? 'ready' : anyFallback ? 'fallback' : anyLoading ? 'loading' : pending.state,
-    loadedBytes: ak.loadedBytes + awp.loadedBytes + knife.loadedBytes + shotgun.loadedBytes,
-    totalBytes: ak.totalBytes + awp.totalBytes + knife.totalBytes + shotgun.totalBytes,
-    completeAssets: ak.completeAssets + awp.completeAssets + knife.completeAssets + shotgun.completeAssets,
-    totalAssets: ak.totalAssets + awp.totalAssets + knife.totalAssets + shotgun.totalAssets,
+    loadedBytes: ak.loadedBytes + awp.loadedBytes + knife.loadedBytes + shotgun.loadedBytes + m200.loadedBytes,
+    totalBytes: ak.totalBytes + awp.totalBytes + knife.totalBytes + shotgun.totalBytes + m200.totalBytes,
+    completeAssets: ak.completeAssets + awp.completeAssets + knife.completeAssets + shotgun.completeAssets + m200.completeAssets,
+    totalAssets: ak.totalAssets + awp.totalAssets + knife.totalAssets + shotgun.totalAssets + m200.totalAssets,
     activeAsset: pending.activeAsset,
     phase: pending.phase,
     phaseProgress: pending.phaseProgress,
@@ -3087,8 +3357,8 @@ function getDetailedAkProgressLabel(snapshot, progress) {
     const loadedFromCache = snapshot.assets.length === getDetailedWeaponAssets().length
       && snapshot.assets.every((asset) => asset.source === 'cache');
     return loadedFromCache
-      ? 'AK、AWP、霰弹枪与 Survival Knife 高模已从本机缓存加载'
-      : 'AK、AWP、霰弹枪与 Survival Knife 高模、材质和贴图已就绪';
+      ? 'AK、AWP、霰弹枪、M200 与 Survival Knife 高模已从本机缓存加载'
+      : 'AK、AWP、霰弹枪、M200 与 Survival Knife 高模、材质和贴图已就绪';
   }
   if (snapshot.state === 'fallback') return '高模同步尚未完成，正在后台重试';
   if (snapshot.phase === 'materials') return '文件下载完成，正在解码材质与贴图';
@@ -3131,6 +3401,7 @@ function beginMatchLoading(intent) {
   detailedAwpProgressListeners.add(refreshMatchLoadingUi);
   detailedKnifeProgressListeners.add(refreshMatchLoadingUi);
   detailedShotgunProgressListeners.add(refreshMatchLoadingUi);
+  detailedM200ProgressListeners.add(refreshMatchLoadingUi);
   updateMatchLoadingUi(getDetailedWeaponProgressSnapshot());
 
   matchLoading.timeoutId = window.setTimeout(() => {
@@ -3187,6 +3458,7 @@ function closeMatchLoading() {
   detailedAwpProgressListeners.delete(refreshMatchLoadingUi);
   detailedKnifeProgressListeners.delete(refreshMatchLoadingUi);
   detailedShotgunProgressListeners.delete(refreshMatchLoadingUi);
+  detailedM200ProgressListeners.delete(refreshMatchLoadingUi);
   matchLoading.active = false;
   matchLoading.intent = '';
   matchLoading.startedAt = 0;
@@ -3306,6 +3578,10 @@ function waitForDetailedKnifeRetry(delay) {
 }
 
 function waitForDetailedShotgunRetry(delay) {
+  return new Promise((resolve) => window.setTimeout(resolve, delay));
+}
+
+function waitForDetailedM200Retry(delay) {
   return new Promise((resolve) => window.setTimeout(resolve, delay));
 }
 
@@ -8229,7 +8505,8 @@ function exposeDebugState() {
             ak: detailedAkLoadState,
             awp: detailedAwpLoadState,
             knife: detailedKnifeLoadState,
-            shotgun: detailedShotgunLoadState
+            shotgun: detailedShotgunLoadState,
+            m200: detailedM200LoadState
           },
           knifeViewBounds: getViewBounds(knifeGroup)
         },
