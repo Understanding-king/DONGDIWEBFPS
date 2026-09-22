@@ -935,6 +935,33 @@ body.kill-impact .scene-canvas { animation: kill-camera-shake .28s cubic-bezier(
   line-height: 1;
 }
 
+.weapon-ammo {
+  color: var(--ink);
+  font: 900 17px var(--mono);
+  letter-spacing: .04em;
+}
+
+.weapon-ammo.empty {
+  color: #ff8d78;
+}
+
+.reload-status {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font: 700 10px var(--mono);
+}
+
+body.is-reloading .reload-status {
+  color: var(--amber);
+  animation: reload-status-pulse .7s ease-in-out infinite alternate;
+}
+
+@keyframes reload-status-pulse {
+  from { opacity: .52; }
+  to { opacity: 1; }
+}
+
 .icecream-status {
   position: absolute;
   left: 22px;
@@ -3679,4 +3706,335 @@ button.weapon-row:hover,
     right: 8px;
     bottom: 74px;
   }
+}
+
+/* CF-inspired field interface: dense panels, hard edges and restrained signal colors. */
+:root {
+  --panel: rgba(13, 18, 19, .94);
+  --ink: #edf1e8;
+  --muted: #99a59d;
+  --line: rgba(205, 219, 203, .16);
+  --line-strong: rgba(205, 219, 203, .3);
+  --steel: #6f807e;
+  --sand: #c1b18a;
+  --shadow: 0 24px 70px rgba(0, 0, 0, .54);
+}
+
+body {
+  background: #0b1011;
+}
+
+.trainer-app {
+  background:
+    linear-gradient(90deg, rgba(159, 209, 123, .055) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(193, 177, 138, .045) 1px, transparent 1px),
+    linear-gradient(135deg, rgba(8, 14, 15, .92), rgba(10, 14, 16, .76)),
+    #0b1011;
+  background-size: 56px 56px, 56px 56px, auto, auto;
+}
+
+button:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+.mobile-controls-switch,
+.hud-stat,
+.target-clock,
+.duel-side,
+.duel-center,
+.weapon-indicator,
+.icecream-status {
+  border-radius: 2px;
+  border-color: rgba(205, 219, 203, .24);
+  background: rgba(8, 13, 15, .88);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, .34), inset 0 1px 0 rgba(255, 255, 255, .035);
+  backdrop-filter: blur(10px);
+}
+
+.mobile-controls-switch {
+  top: 84px;
+  min-height: 34px;
+  border-radius: 2px;
+  font-size: 10px;
+  letter-spacing: .06em !important;
+}
+
+.hud {
+  top: 18px;
+  left: 18px;
+  right: 18px;
+  gap: 12px;
+}
+
+.hud-cluster { gap: 7px; }
+.hud-stat {
+  position: relative;
+  min-width: 106px;
+  padding: 10px 12px 11px;
+}
+
+.hud-stat::before,
+.duel-side::before,
+.duel-center::before {
+  content: '';
+  position: absolute;
+  inset: -1px auto auto -1px;
+  width: 28px;
+  height: 2px;
+  background: var(--cyan);
+  box-shadow: 0 0 12px rgba(46, 230, 166, .35);
+}
+
+.hud-stat strong { margin-top: 4px; font: 900 26px/1 var(--mono); }
+.hud-stat span { font-size: 10px; text-transform: uppercase; }
+.target-clock { padding: 9px 11px; }
+.target-clock span { margin-bottom: 6px; font-size: 10px; }
+
+.duel-hud {
+  top: 18px;
+  left: 18px;
+  right: 18px;
+  gap: 12px;
+}
+
+.duel-side,
+.duel-center {
+  position: relative;
+  border-radius: 2px;
+}
+
+.duel-side { padding: 11px 12px; }
+.duel-center { padding: 11px 14px; }
+.duel-side strong { margin: 4px 0 7px; font: 900 27px/1 var(--mono); }
+.duel-side meter { height: 7px; margin-bottom: 6px; }
+
+.kill-feed-row {
+  min-height: 44px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, rgba(8, 12, 14, .94), rgba(35, 20, 24, .9), rgba(8, 12, 14, .94));
+}
+
+.weapon-indicator {
+  min-width: 198px;
+  padding: 11px 12px;
+}
+
+.weapon-indicator strong { margin: 4px 0 5px; font: 900 21px/1 var(--mono); }
+.weapon-ammo { font-size: 16px; }
+
+.panel.mode-panel {
+  background: rgba(7, 12, 14, .88);
+  backdrop-filter: blur(8px);
+}
+
+.mode-panel::before {
+  background:
+    linear-gradient(90deg, transparent 0 12%, rgba(159, 209, 123, .06) 12.1%, transparent 12.2% 77%, rgba(193, 177, 138, .06) 77.1%, transparent 77.2%),
+    linear-gradient(0deg, rgba(159, 209, 123, .04) 1px, transparent 1px),
+    rgba(7, 10, 14, .24);
+  background-size: auto, 100% 56px, auto;
+}
+
+.lobby-rail {
+  width: 82px;
+  border-right-color: rgba(205, 219, 203, .16);
+  background: rgba(6, 11, 12, .96);
+}
+
+.lobby-mark {
+  width: 82px;
+  height: 68px;
+  background: var(--cyan);
+}
+
+.lobby-nav { padding: 18px 8px; }
+.lobby-nav button {
+  min-height: 56px;
+  border-radius: 2px;
+  color: var(--steel);
+}
+
+.lobby-nav button:hover,
+.lobby-nav button.active { background: rgba(159, 209, 123, .08); }
+.lobby-nav button.active::before { background: var(--cyan); }
+
+.lobby-frame { inset: 0 0 0 82px; }
+.lobby-topbar {
+  height: 68px;
+  padding: 0 24px;
+  border-bottom-color: rgba(205, 219, 203, .16);
+  background: rgba(7, 12, 14, .9);
+}
+
+.game-identity { gap: 10px; }
+.game-identity span { color: var(--sand); font-size: 9px; }
+.game-identity h1,
+.mode-panel .game-identity h1 { font: 900 18px/1 var(--mono); }
+.wallet { height: 38px; border-radius: 2px; }
+.account-chip { height: 42px; border-radius: 2px; }
+.lobby-content { inset: 68px 0 0; }
+.lobby-view { padding: 26px clamp(22px, 3.4vw, 52px) 38px; }
+
+.command-stage {
+  min-height: min(50vh, 448px);
+  border-color: rgba(205, 219, 203, .18);
+  background:
+    linear-gradient(115deg, rgba(159, 209, 123, .06), transparent 35%),
+    rgba(5, 10, 12, .56);
+}
+
+.command-copy { padding: clamp(28px, 4vw, 54px); }
+.command-label { margin-top: 26px !important; color: var(--sand) !important; }
+.command-copy h2 { font-size: clamp(34px, 4.2vw, 62px); }
+.command-meta { gap: 12px; color: #a5b0a7; }
+.command-meta span { padding-right: 12px; border-right: 1px solid rgba(205, 219, 203, .18); }
+.command-meta span:last-child { border-right: 0; }
+
+.launch-action {
+  min-height: 50px;
+  min-width: 196px;
+  margin-top: 28px;
+  border: 1px solid rgba(255, 255, 255, .26);
+  border-radius: 2px;
+  box-shadow: 0 12px 26px rgba(46, 230, 166, .18);
+}
+
+.loadout-preview {
+  padding: 28px clamp(24px, 4vw, 58px);
+  background: linear-gradient(135deg, rgba(159, 209, 123, .035), transparent 50%);
+}
+
+.staging-bay {
+  min-height: 228px;
+  border-color: rgba(159, 209, 123, .22);
+  background:
+    linear-gradient(90deg, rgba(159, 209, 123, .08) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(193, 177, 138, .06) 1px, transparent 1px),
+    #091111;
+  background-size: 28px 28px, 28px 28px, auto;
+}
+
+.section-heading,
+.loadout-heading { border-bottom-color: rgba(205, 219, 203, .18); }
+.section-heading span,
+.loadout-heading b { color: var(--ink); }
+
+.mode-card,
+.game-mode-grid .mode-card,
+.weapon-row,
+.inventory-focus,
+.store-item,
+.profile-identity,
+.friends-panel,
+.room-browser,
+.room-dock {
+  border-radius: 2px;
+}
+
+.game-mode-grid .mode-card {
+  border-color: rgba(205, 219, 203, .18);
+  background: linear-gradient(145deg, rgba(159, 209, 123, .055), rgba(7, 12, 14, .84));
+}
+
+.game-mode-grid .mode-card:hover,
+.store-item:hover,
+.weapon-row:hover {
+  border-color: rgba(159, 209, 123, .54);
+  background: rgba(159, 209, 123, .09);
+}
+
+.weapon-row { min-height: 78px; }
+.inventory-focus { background: rgba(7, 12, 14, .58); }
+.store-item { background: rgba(7, 12, 14, .76); }
+.profile-identity { background: rgba(7, 12, 14, .7); }
+.friends-panel { background: rgba(7, 12, 14, .62); }
+
+.primary-action,
+.secondary-action,
+.segmented button,
+.toggle-button,
+.text-input {
+  border-radius: 2px;
+}
+
+.primary-action { min-height: 40px; box-shadow: 0 10px 22px rgba(46, 230, 166, .18); }
+.secondary-action { min-height: 40px; }
+.text-input { height: 40px; }
+.segmented button { min-height: 40px; }
+
+.room-lobby-page {
+  background:
+    linear-gradient(90deg, rgba(159, 209, 123, .052) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(193, 177, 138, .04) 1px, transparent 1px),
+    #0b1011;
+  background-size: 56px 56px, 56px 56px, auto;
+}
+
+.room-browser,
+.room-dock { border-color: rgba(205, 219, 203, .18); background: rgba(7, 12, 14, .82); }
+.room-list-row { border-left-width: 2px; background: rgba(159, 209, 123, .055); }
+.room-dock-title strong { font: 900 16px var(--mono); }
+.room-roster { padding-top: 2px; }
+
+.touch-joystick {
+  border-radius: 50%;
+  border-color: rgba(205, 219, 203, .3);
+  background: radial-gradient(circle at center, rgba(159, 209, 123, .16), transparent 53%), rgba(8, 13, 15, .7);
+}
+
+.touch-actions button {
+  min-width: 70px;
+  min-height: 58px;
+  border-radius: 2px;
+  border-color: rgba(205, 219, 203, .32);
+  background: rgba(8, 13, 15, .78);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, .36), inset 0 1px 0 rgba(255, 255, 255, .045);
+}
+
+.touch-actions button:active { transform: translateY(1px); border-color: var(--amber); }
+.touch-actions .touch-fire { border-radius: 2px; background: var(--amber); }
+
+@media (max-width: 860px) {
+  .hud { top: 12px; left: 12px; right: 12px; }
+  .duel-hud { top: 12px; left: 12px; right: 12px; }
+  .hud-stat { padding: 9px 10px; }
+  .hud-stat strong, .hud-stat.compact strong { font-size: 19px; }
+  .lobby-frame { inset: 0 0 66px; }
+  .lobby-topbar { height: 64px; }
+  .lobby-content { inset: 64px 0 0; }
+}
+
+@media (max-width: 700px) {
+  .lobby-rail {
+    inset: auto 0 0;
+    width: 100%;
+    height: 66px;
+    flex-direction: row;
+  }
+
+  .lobby-nav {
+    padding: 0 6px;
+  }
+
+  .lobby-nav button {
+    min-height: 58px;
+  }
+}
+
+@media (max-width: 540px) {
+  .mobile-controls-switch { right: 10px; bottom: max(76px, calc(env(safe-area-inset-bottom) + 68px)); top: auto; }
+  .lobby-view { padding: 14px 12px 24px; }
+  .command-copy { padding: 28px 18px; }
+  .command-copy h2 { font-size: 36px; }
+  .loadout-preview { padding: 22px 18px; }
+  .touch-joystick { left: max(14px, env(safe-area-inset-left)); bottom: max(24px, env(safe-area-inset-bottom)); top: auto; transform: none; }
+  .touch-actions { right: max(10px, env(safe-area-inset-right)); bottom: max(20px, env(safe-area-inset-bottom)); top: auto; transform: none; }
+  .touch-actions button { min-width: 64px; min-height: 56px; }
+  .touch-actions .touch-fire { min-width: 76px; min-height: 76px; }
+  body.has-mobile-controls .weapon-indicator { right: 150px; bottom: max(18px, env(safe-area-inset-bottom)); min-width: 138px; padding: 9px 10px; }
+  .weapon-indicator strong { font-size: 18px; }
+  .weapon-ammo { font-size: 14px; }
 }

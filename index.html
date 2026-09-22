@@ -131,7 +131,9 @@
       <div class="weapon-indicator" id="weapon-indicator" hidden>
         <span id="weapon-slot-label">主武器</span>
         <strong id="weapon-name-label">AK-47</strong>
-        <small id="weapon-action-hint">Space 跳 · F 雪糕 · B/滚轮/1/2/3/4 武器 · Q 求生刀 · E 主武器</small>
+        <div class="weapon-ammo" id="weapon-ammo" aria-live="polite">30 / 90</div>
+        <small class="reload-status" id="reload-status">R 换弹</small>
+        <small id="weapon-action-hint">Space 跳 · R 换弹 · F 雪糕 · B/滚轮/1/2/3/4 武器 · Q 求生刀 · E 主武器</small>
       </div>
 
       <div class="icecream-status" id="icecream-status" hidden>F 巧乐兹 可用</div>
@@ -175,6 +177,7 @@
           <button type="button" data-mobile-action="cycle-primary">配装</button>
           <button type="button" data-mobile-action="knife">刀</button>
           <button type="button" data-mobile-action="primary">枪</button>
+          <button type="button" data-mobile-action="reload">换弹</button>
           <button type="button" data-mobile-action="icecream">雪糕</button>
         </div>
       </div>
@@ -244,10 +247,10 @@
                 <div class="command-copy">
                   <span class="live-state"><b></b> 训练场开放</span>
                   <p class="command-label">快速开始</p>
-                  <h2>标准 BOT<br />公园对枪</h2>
+                  <h2>标准 BOT<br />沙漠灰对枪</h2>
                   <div class="command-meta">
                     <span><i data-lucide="bot"></i> 标准</span>
-                    <span><i data-lucide="map-pin"></i> 公园</span>
+                    <span><i data-lucide="map-pin"></i> 沙漠灰</span>
                     <span><i data-lucide="trophy"></i> 先到 10 杀</span>
                   </div>
                   <button class="launch-action" id="quick-play-button" type="button">
@@ -539,8 +542,8 @@
             <div class="room-dock-title"><span>YOUR STATION</span><strong id="room-station-state">未加入房间</strong></div>
             <label class="room-field" for="player-name"><span>玩家名</span><input class="text-input" id="player-name" maxlength="16" value="Player" autocomplete="off" /></label>
             <div class="room-field map-field">
-              <div><span>对枪地图</span><strong id="duel-map-label">公园</strong></div>
-              <div class="segmented" aria-label="对枪地图"><button type="button" data-duel-map="park">公园</button><button type="button" data-duel-map="ring">回型</button></div>
+              <div><span>对枪地图</span><strong id="duel-map-label">沙漠灰</strong></div>
+              <div class="segmented" aria-label="对枪地图"><button type="button" data-duel-map="park">沙漠灰</button><button type="button" data-duel-map="ring">回型</button></div>
             </div>
             <div class="room-share"><span>HOST ADDRESS</span><div id="lan-addresses">正在连接本地对战服务...</div></div>
             <section class="room-invite" aria-labelledby="room-invite-title">
@@ -582,10 +585,10 @@
           <div class="control-block map-control">
             <div class="control-label">
               <span>对枪地图</span>
-              <strong id="bot-map-label">公园</strong>
+              <strong id="bot-map-label">沙漠灰</strong>
             </div>
             <div class="segmented" aria-label="人机地图">
-              <button type="button" data-duel-map="park">公园</button>
+              <button type="button" data-duel-map="park">沙漠灰</button>
               <button type="button" data-duel-map="ring">回型</button>
             </div>
           </div>

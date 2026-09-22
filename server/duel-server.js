@@ -38,9 +38,12 @@ const BOT_NAV_REPATH_MS = 850;
 const BOT_NAV_TARGET_SHIFT = 2.4;
 const BOT_NAV_STUCK_MS = 520;
 const TEAM_NAMES = ['red', 'blue'];
+const mapBlocker = (minX, maxX, minZ, maxZ, maxY = 2.2) => ({
+  minX, maxX, minZ, maxZ, minY: 0, maxY
+});
 const MAP_CONFIGS = {
   park: {
-    label: '公园',
+    label: '沙漠灰',
     bounds: { minX: -22, maxX: 22, minZ: -46, maxZ: 22 },
     spawns: {
       red: [
@@ -58,21 +61,56 @@ const MAP_CONFIGS = {
         { position: { x: 15.4, y: CAMERA_HEIGHT, z: -25.6 }, yaw: Math.PI - 0.72 }
       ]
     },
+    // Axis-aligned server mirrors of the visual Desert Gray blockers. Rotated
+    // client boxes intentionally use conservative bounds here for fair LAN play.
     blockers: [
-      { minX: -14.8, maxX: -4.8, minZ: 1.0, maxZ: 2.6 },
-      { minX: 5.8, maxX: 15.0, minZ: -27.0, maxZ: -25.4 },
-      { minX: -15.8, maxX: -13.8, minZ: -28.0, maxZ: -17.6 },
-      { minX: 13.8, maxX: 15.8, minZ: -7.2, maxZ: 3.8 },
-      { minX: -8.8, maxX: -4.8, minZ: -28.9, maxZ: -26.7 },
-      { minX: 4.8, maxX: 8.8, minZ: 2.7, maxZ: 4.9 },
-      { minX: -14.8, maxX: -9.6, minZ: -11.2, maxZ: -8.4 },
-      { minX: 9.6, maxX: 14.8, minZ: -15.6, maxZ: -12.8 },
-      { minX: -8.3, maxX: -4.5, minZ: -29.4, maxZ: -26.2 },
-      { minX: 4.5, maxX: 8.3, minZ: 2.2, maxZ: 5.4 }
+      mapBlocker(-22.49, 22.49, 22.01, 22.49, 2.4),
+      mapBlocker(-22.49, 22.49, -46.49, -46.01, 2.4),
+      mapBlocker(-22.49, -22.01, -46.4, 22.4, 2.4),
+      mapBlocker(22.01, 22.49, -46.4, 22.4, 2.4),
+      // Red end house.
+      mapBlocker(-18.71, -15.45, 17.36, 17.84, 4.25),
+      mapBlocker(-11.55, -8.29, 17.36, 17.84, 4.25),
+      mapBlocker(-18.74, -18.26, 7.3, 17.7, 4.25),
+      mapBlocker(-8.74, -8.26, 7.3, 10.86, 4.25),
+      mapBlocker(-8.74, -8.26, 14.14, 17.7, 4.25),
+      // Blue end house.
+      mapBlocker(8.29, 11.55, -41.84, -41.36, 4.25),
+      mapBlocker(15.45, 18.71, -41.84, -41.36, 4.25),
+      mapBlocker(8.26, 8.74, -41.7, -31.3, 4.25),
+      mapBlocker(18.26, 18.74, -41.7, -38.14, 4.25),
+      mapBlocker(18.26, 18.74, -34.86, -31.3, 4.25),
+      // Mid side warehouses.
+      mapBlocker(-18.26, -17.74, -18.7, -4.9, 3.9),
+      mapBlocker(-18.0, -12.0, -18.71, -18.19, 3.9),
+      mapBlocker(-18.0, -12.0, -5.41, -4.89, 3.9),
+      mapBlocker(17.74, 18.26, -19.1, -5.3, 3.9),
+      mapBlocker(12.0, 18.0, -19.11, -18.59, 3.9),
+      mapBlocker(12.0, 18.0, -5.81, -5.29, 3.9),
+      // Corner cuts and offset mid covers.
+      mapBlocker(-11.95, -5.45, -4.98, -2.12, 1.35),
+      mapBlocker(5.45, 11.95, -21.88, -19.02, 1.35),
+      mapBlocker(-10.1, -7.3, -23.55, -17.35, 1.35),
+      mapBlocker(7.3, 10.1, -6.65, -0.45, 1.35),
+      mapBlocker(-14.7, -6.1, 1.0, 3.0, 1.1),
+      mapBlocker(6.1, 14.7, -27.2, -25.2, 1.1),
+      // Crate stacks. A conservative footprint keeps the LAN collision model
+      // aligned with the rounded client boxes and their upper tier.
+      mapBlocker(-8.45, -5.45, 4.05, 6.75, 2.2),
+      mapBlocker(5.75, 8.75, -30.75, -28.05, 2.2),
+      mapBlocker(-15.35, -12.65, -9.35, -6.65, 2.2),
+      mapBlocker(12.65, 15.35, -17.35, -14.65, 2.2),
+      mapBlocker(-7.95, -5.25, -33.25, -30.45, 2.2),
+      mapBlocker(5.75, 8.75, 6.45, 9.25, 2.2),
+      // Low sandbag rows.
+      mapBlocker(-5.32, -2.48, -9.05, -8.35, 0.66),
+      mapBlocker(2.48, 5.32, -15.65, -14.95, 0.66),
+      mapBlocker(-5.32, -2.48, -24.05, -23.35, 0.66),
+      mapBlocker(2.48, 5.32, -30.65, -29.95, 0.66)
     ]
   },
   ring: {
-    label: '回型地图',
+    label: '沙漠灰·回型',
     bounds: { minX: -28, maxX: 28, minZ: -48, maxZ: 16 },
     spawns: {
       red: [
@@ -100,12 +138,22 @@ const MAP_CONFIGS = {
       { minX: -21.6, maxX: -18.4, minZ: -38.2, maxZ: -32.6 },
       { minX: 18.4, maxX: 21.6, minZ: 0.6, maxZ: 6.2 },
       { minX: -16.8, maxX: -13.2, minZ: -17.8, maxZ: -14.2 },
-      { minX: 13.2, maxX: 16.8, minZ: -17.8, maxZ: -14.2 }
+      { minX: 13.2, maxX: 16.8, minZ: -17.8, maxZ: -14.2 },
+      // Ring map crate stacks added to the visual loop.
+      mapBlocker(-18.58, -17.42, 6.62, 7.78, 1.1),
+      mapBlocker(-19.58, -18.52, 6.95, 8.01, 1.05),
+      mapBlocker(17.42, 18.58, -39.78, -38.62, 1.1),
+      mapBlocker(18.52, 19.58, -39.45, -38.39, 1.05),
+      mapBlocker(-18.66, -17.34, -26.46, -25.14, 1.24),
+      mapBlocker(-19.52, -18.52, -26.27, -25.27, 1.18),
+      mapBlocker(17.34, 18.66, -6.86, -5.54, 1.24),
+      mapBlocker(18.52, 19.52, -6.67, -5.67, 1.18)
     ]
   }
 };
 
-applyBlockerHeights(MAP_CONFIGS.park.blockers, [MEDIUM_COVER_HEIGHT, MEDIUM_COVER_HEIGHT, MEDIUM_COVER_HEIGHT, MEDIUM_COVER_HEIGHT, 0.78, 0.78, 0.8, 0.8, 1.05, 1.05]);
+// Park blockers carry their own heights so the server mirrors the richer map.
+applyBlockerHeights(MAP_CONFIGS.park.blockers, []);
 applyBlockerHeights(MAP_CONFIGS.ring.blockers, [RING_OUTER_WALL_HEIGHT, RING_OUTER_WALL_HEIGHT, RING_OUTER_WALL_HEIGHT, RING_OUTER_WALL_HEIGHT, MEDIUM_COVER_HEIGHT, MEDIUM_COVER_HEIGHT, MEDIUM_COVER_HEIGHT, MEDIUM_COVER_HEIGHT, 0.86, 0.86]);
 
 const rooms = new Map();
@@ -1052,7 +1100,7 @@ function pointInRect(point, rect, padding = 0) {
 function applyBlockerHeights(blockers, heights) {
   blockers.forEach((blocker, index) => {
     blocker.minY = 0;
-    blocker.maxY = heights[index] ?? 1.1;
+    blocker.maxY = heights[index] ?? blocker.maxY ?? 1.1;
   });
 }
 
