@@ -19,7 +19,7 @@
 
 `pnpm run check:hd` 检查移动、碰撞、弹药、GLB 完整性与碰撞数据，GitHub Actions 也运行这些检查。`pnpm run build` 构建两个页面。本次根据用户要求在部署后进行线上浏览器验证，不启动本地试玩服务。
 
-资源来源见 `public/models/hd-arena/ASSET-SOURCES.md`。Blender 重建脚本为 `scripts/build_hd_map.py`、`scripts/build_hd_hands.py`；`preview-v1.jpg` 是资产预览图，不是线上截图。
+资源来源见 `public/models/hd-arena/ASSET-SOURCES.md`。Blender 重建脚本为 `scripts/build_hd_map.py`、`scripts/build_hd_hands.py`、`scripts/build_hd_weapon.py`；`preview-v1.jpg` 是资产预览图，不是线上截图。高清大区 AK 使用约 4.1 MB 的 Meshopt GLB，保留原有三角形细节；旧大区的 OBJ 和 PNG 文件未修改。
 
 ## 尚未达到的部分
 

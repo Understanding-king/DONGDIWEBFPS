@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinnedScene } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { createWeapon } from './weapon-assets.js';
+import { loadGltfWithRetry } from './assets.js';
 
 let handsPromise;
 const POSITION = new THREE.Vector3(0.24, -0.3, -0.68);
@@ -9,7 +10,7 @@ const POSITION = new THREE.Vector3(0.24, -0.3, -0.68);
 export async function createViewmodel(camera) {
   if (!camera?.isCamera) throw new TypeError('createViewmodel requires a THREE.Camera');
   // Load sequentially so a rejected hand asset cannot leak a weapon instance.
-  handsPromise ||= new GLTFLoader().loadAsync('/models/hd-arena/hands-v1.glb').catch((error) => {
+  handsPromise ||= loadGltfWithRetry(new GLTFLoader(), '/models/hd-arena/hands-v1.glb').catch((error) => {
     handsPromise = undefined;
     throw error;
   });

@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 
-for (const path of ['public/models/hd-arena/desert-courtyard-v1.glb', 'public/models/hd-arena/hands-v1.glb', 'public/models/cf-soldier/Soldier.glb']) {
+for (const path of ['public/models/hd-arena/desert-courtyard-v1.glb', 'public/models/hd-arena/hands-v1.glb', 'public/models/hd-arena/ak47-v1.glb', 'public/models/cf-soldier/Soldier.glb']) {
   const buffer = await readFile(new URL(`../${path}`, import.meta.url));
   assert.equal(buffer.toString('ascii', 0, 4), 'glTF', `${path}: signature`);
   assert.equal(buffer.readUInt32LE(4), 2, `${path}: version`);
@@ -11,6 +11,7 @@ for (const path of ['public/models/hd-arena/desert-courtyard-v1.glb', 'public/mo
   for (const view of document.bufferViews || []) assert.ok((view.byteOffset || 0) + view.byteLength <= document.buffers[view.buffer].byteLength, `${path}: buffer overflow`);
   if (path.includes('hands')) for (const arm of ['armLeft', 'armRight']) assert.ok(document.nodes.some((node) => node.name === arm), `missing ${arm}`);
   if (path.includes('Soldier')) for (const name of ['Idle', 'Walk', 'Run']) assert.ok(document.animations.some((animation) => animation.name === name), `missing ${name}`);
+  if (path.includes('ak47')) assert.ok(document.nodes.some((node) => node.name === 'hd-ak47-muzzle'), 'missing weapon muzzle');
   console.log(`${path}: ${document.meshes.length} meshes, ${buffer.length} bytes`);
 }
 const collision = JSON.parse(await readFile(new URL('../public/models/hd-arena/collision-v1.json', import.meta.url)));

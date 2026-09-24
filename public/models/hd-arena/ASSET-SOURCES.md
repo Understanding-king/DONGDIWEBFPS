@@ -57,3 +57,12 @@ finger skeleton; the reload motion is a procedural wrist animation.
 
 The AK mesh and texture set reuse the project's existing `/models/ak-47/`
 assets. This change adds no CF or GTA proprietary character/weapon files.
+
+`ak47-v1.glb` repackages that existing OBJ and its color, normal, metalness and
+roughness maps with `scripts/build_hd_weapon.py`. The detailed geometry is
+retained without decimation; textures are resized to 1024 pixels and JPEG
+encoded at quality 90 for a single compact request. The rifle is centered,
+one metre long along Z, faces -Z, and includes the `hd-ak47-muzzle` node.
+Meshopt compression preserves the geometry without removing triangles. Its
+decoder is bundled from the existing Three.js dependency, with no CDN request.
+This repackaging does not establish or change the original asset's license.

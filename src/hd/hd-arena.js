@@ -4,6 +4,7 @@ import { createCombatant } from './character.js';
 import { createViewmodel } from './viewmodel.js';
 import { createMovement } from './movement.js';
 import { createWeaponState } from './combat.js';
+import { loadGltfWithRetry } from './assets.js';
 
 const ROOT = '/models/hd-arena/';
 
@@ -40,7 +41,10 @@ export async function createHdArena(canvas, { onLoad = () => {}, onState = () =>
   try {
     onLoad('载入沙漠庭院', 0.08);
     const [gltf, response] = await Promise.all([
-      new GLTFLoader().loadAsync(`${ROOT}desert-courtyard-v1.glb`),
+      loadGltfWithRetry(new GLTFLoader(), `${ROOT}desert-courtyard-v1.glb`, (event) => {
+        const megabytes = (event.loaded / 1048576).toFixed(1);
+        onLoad(`载入沙漠庭院 · ${megabytes} MB`, event.total > 0 ? 0.08 + Math.min(1, event.loaded / event.total) * 0.3 : 0.18);
+      }),
       fetch(`${ROOT}collision-v1.json`)
     ]);
     if (!response.ok) throw new Error(`地图数据请求失败 (${response.status})`);

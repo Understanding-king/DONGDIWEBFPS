@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinnedScene } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { createWeapon } from './weapon-assets.js';
+import { loadGltfWithRetry } from './assets.js';
 
 const SOLDIER_URL = '/models/cf-soldier/Soldier.glb';
 const SOLDIER_HEIGHT = 1.86;
@@ -162,7 +163,7 @@ export async function createCombatant(scene, { position, team = 'blue' } = {}) {
 }
 
 async function loadSoldierSource() {
-  soldierSourcePromise ||= new GLTFLoader().loadAsync(SOLDIER_URL).then((gltf) => {
+  soldierSourcePromise ||= loadGltfWithRetry(new GLTFLoader(), SOLDIER_URL).then((gltf) => {
     if (!gltf?.scene) throw new Error(`Soldier GLB scene is empty: ${SOLDIER_URL}`);
     return gltf;
   }).catch((error) => {
