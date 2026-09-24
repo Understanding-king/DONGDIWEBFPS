@@ -98,7 +98,7 @@ export async function createHdArena(canvas, { onLoad = () => {}, onState = () =>
   impact.visible = false;
   scene.add(impact);
   let yaw = 0, pitch = 0, kills = 0, elapsed = 0, recoil = 0, hitRemaining = 0;
-  let effectRemaining = 0, scoreRemaining = 0, scoreLabel = '', trigger = false;
+  let effectRemaining = 0, scoreRemaining = 0, scoreLabel = '', trigger = false, jumpPending = false;
   let locked = false, disposed = false, previousTime = performance.now(), hudClock = 0, raf = 0;
   let audioContext;
 
@@ -175,11 +175,12 @@ export async function createHdArena(canvas, { onLoad = () => {}, onState = () =>
     pitch = Math.min(1.35, pitch + 0.006);
   }
 
-  function clearInput() { keys.clear(); trigger = false; }
+  function clearInput() { keys.clear(); trigger = false; jumpPending = false; }
   function onKeyDown(event) {
     if (!locked) return;
     if (['Space', 'ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyR'].includes(event.code)) event.preventDefault();
     keys.add(event.code);
+    if (event.code === 'Space' && !event.repeat) jumpPending = true;
     if (event.code === 'KeyR' && !event.repeat && weapon.reload()) sound('reload');
   }
   function onKeyUp(event) { keys.delete(event.code); }
@@ -216,10 +217,11 @@ export async function createHdArena(canvas, { onLoad = () => {}, onState = () =>
     movement.update(dt, {
       forward: Number(keys.has('KeyW')) - Number(keys.has('KeyS')),
       strafe: Number(keys.has('KeyD')) - Number(keys.has('KeyA')),
-      yaw, jump: keys.has('Space'),
+      yaw, jump: keys.has('Space') || jumpPending,
       crouch: keys.has('ControlLeft') || keys.has('ControlRight'),
       walk: keys.has('ShiftLeft') || keys.has('ShiftRight')
     });
+    if (dt > 0) jumpPending = false;
     camera.position.set(movement.position.x, movement.position.y + (movement.crouch ? 1.08 : 1.65), movement.position.z);
     camera.rotation.set(pitch, yaw, 0);
     for (const enemy of enemies) {
