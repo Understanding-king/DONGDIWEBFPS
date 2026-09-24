@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>高清竞技大区 · DONGDI WEB FPS</title>
+  <meta name="theme-color" content="#111716" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/src/hd/arena.css" />
+</head>
+<body>
+  <canvas id="hd-canvas" aria-label="沙漠庭院竞技训练场景"></canvas>
+  <div class="vignette" aria-hidden="true"></div>
+  <div class="hud" id="hud" hidden>
+    <div class="location"><span class="eyebrow">DONGDI / HD ARENA</span><strong>沙漠庭院</strong><span id="location-name">南部庭院</span></div>
+    <div class="round"><span>自由训练</span><strong id="timer">00:00</strong><span>击倒 <b id="kills">00</b></span></div>
+    <div class="compass"><span>N</span><span id="heading">000°</span><span>ESC 暂停</span></div>
+    <div class="crosshair" id="crosshair" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="hitmarker" id="hitmarker" aria-hidden="true"></div>
+    <div class="score" id="score" role="status"></div>
+    <div class="vitals"><span class="eyebrow">TRAINING OPERATOR</span><div><span class="health-icon">+</span><strong>100</strong><span class="health-label">HP</span></div><div class="health-bar"><i></i></div><small>自由训练 · 无受伤惩罚</small></div>
+    <div class="movement"><span id="stance">站立</span><strong id="speed">0.0 <small>m/s</small></strong><span>WASD 移动 · Space 跳跃 · Ctrl 蹲伏 · Shift 静步</span></div>
+    <div class="weapon"><span class="eyebrow">01 / ASSAULT RIFLE</span><strong>AK-47</strong><div class="ammo"><b id="ammo">30</b><span>/ <span id="reserve">90</span></span></div><div class="reload-track"><i id="reload-fill"></i></div><small id="reload-label">R 装填弹匣</small></div>
+  </div>
+  <main class="menu" id="menu">
+    <header class="menu-header"><a href="/" class="brand">DONGDI<span>WEB FPS</span></a><a href="/" class="back">← 返回大厅</a></header>
+    <section class="briefing" aria-labelledby="arena-title">
+      <div class="eyebrow"><span class="status-dot"></span>独立大区 / 先行体验</div>
+      <p class="serial">FIELD OPERATIONS / 01</p>
+      <h1 id="arena-title">高清竞技<br><em>大区</em><span class="title-rule"></span></h1>
+      <p class="intro">在日照庭院与石砌拱廊之间，<br>寻找下一条进攻路线。</p>
+      <div class="mission"><span>当前战区</span><strong>沙漠庭院</strong><span>自由训练 · 3 个移动目标</span></div>
+      <div class="loading" id="loading" role="status" aria-live="polite"><div><span id="loading-label">准备战区资源</span><span id="loading-percent">0%</span></div><div class="loading-track"><i id="loading-fill"></i></div></div>
+      <button class="deploy" id="start" disabled>正在载入 <span>↗</span></button>
+      <button class="reset" id="reset" hidden>重新开始训练 · 补充弹药</button>
+      <p class="error" id="error" role="alert" hidden></p>
+      <button class="reset" id="retry" hidden>重新加载</button>
+      <p class="equipment">AK-47 / 30 发弹匣 / 90 发备弹</p>
+    </section>
+    <aside class="map-caption"><span class="eyebrow">DESERT COURTYARD</span><strong>穿过拱廊，控制中路。</strong><p>侧翼绕行 / 移动射击 / 落地节奏</p></aside>
+    <footer class="menu-footer"><div><kbd>W A S D</kbd>移动 <kbd>SPACE</kbd>跳跃 <kbd>CTRL</kbd>蹲伏 <kbd>SHIFT</kbd>静步 <kbd>R</kbd>换弹</div><span>桌面键鼠体验 · 旧玩法仍在大厅</span></footer>
+  </main>
+  <script type="module" src="/src/hd/entry.js"></script>
+</body>
+</html>

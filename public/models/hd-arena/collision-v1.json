@@ -1,0 +1,2879 @@
+{
+  "version": 1,
+  "asset": "desert-courtyard-v1",
+  "coordinateSystem": "three-y-up",
+  "bounds": {
+    "min": [
+      -24,
+      0,
+      -32
+    ],
+    "max": [
+      24,
+      9,
+      24
+    ]
+  },
+  "spawn": {
+    "x": 0,
+    "y": 0,
+    "z": 19
+  },
+  "target": {
+    "x": 0,
+    "y": 0,
+    "z": -19
+  },
+  "solids": [
+    {
+      "name": "north_wall_solid",
+      "shape": "aabb",
+      "min": [
+        -24.0,
+        0.0,
+        -32.0
+      ],
+      "max": [
+        24.0,
+        5.0,
+        -31.5
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_wall_solid",
+      "shape": "aabb",
+      "min": [
+        -24.0,
+        0.0,
+        23.5
+      ],
+      "max": [
+        24.0,
+        5.0,
+        24.0
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "west_wall_solid",
+      "shape": "aabb",
+      "min": [
+        -24.0,
+        0.0,
+        -32.0
+      ],
+      "max": [
+        -23.5,
+        5.0,
+        24.0
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "east_wall_solid",
+      "shape": "aabb",
+      "min": [
+        23.5,
+        0.0,
+        -32.0
+      ],
+      "max": [
+        24.0,
+        5.0,
+        24.0
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "west_residence_back_solid",
+      "shape": "aabb",
+      "min": [
+        -22.93,
+        0.0,
+        -16.0
+      ],
+      "max": [
+        -22.47,
+        8.1,
+        8.0
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "west_residence_end_-1_solid",
+      "shape": "aabb",
+      "min": [
+        -22.9,
+        0.0,
+        -16.03
+      ],
+      "max": [
+        -14.9,
+        8.1,
+        -15.57
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "west_residence_end_1_solid",
+      "shape": "aabb",
+      "min": [
+        -22.9,
+        0.0,
+        7.57
+      ],
+      "max": [
+        -14.9,
+        8.1,
+        8.03
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "west_residence_upper_floor_solid",
+      "shape": "aabb",
+      "min": [
+        -22.9,
+        4.22,
+        -16.0
+      ],
+      "max": [
+        -14.9,
+        4.5,
+        8.0
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "west_residence_upper_front_solid",
+      "shape": "aabb",
+      "min": [
+        -15.34,
+        4.425,
+        -16.0
+      ],
+      "max": [
+        -14.86,
+        7.975,
+        8.0
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "west_residence_arcade_0_arch_solid_0",
+      "shape": "obb",
+      "min": [
+        -15.125,
+        1.65,
+        -14.635
+      ],
+      "max": [
+        -15.075,
+        4.3,
+        -14.115
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_0_arch_solid_1",
+      "shape": "obb",
+      "min": [
+        -15.174,
+        2.157,
+        -14.536
+      ],
+      "max": [
+        -15.026,
+        4.3,
+        -14.016
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_0_arch_solid_2",
+      "shape": "obb",
+      "min": [
+        -15.22,
+        2.645,
+        -14.342
+      ],
+      "max": [
+        -14.98,
+        4.3,
+        -13.822
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_0_arch_solid_3",
+      "shape": "obb",
+      "min": [
+        -15.262,
+        3.094,
+        -14.06
+      ],
+      "max": [
+        -14.938,
+        4.3,
+        -13.54
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_0_arch_solid_4",
+      "shape": "obb",
+      "min": [
+        -15.297,
+        3.488,
+        -13.701
+      ],
+      "max": [
+        -14.903,
+        4.3,
+        -13.181
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_0_arch_solid_5",
+      "shape": "obb",
+      "min": [
+        -15.325,
+        3.812,
+        -13.28
+      ],
+      "max": [
+        -14.875,
+        4.3,
+        -12.76
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_0_arch_solid_6",
+      "shape": "obb",
+      "min": [
+        -15.344,
+        4.052,
+        -12.811
+      ],
+      "max": [
+        -14.856,
+        4.3,
+        -12.291
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_0_arch_solid_7",
+      "shape": "obb",
+      "min": [
+        -15.354,
+        4.2,
+        -12.314
+      ],
+      "max": [
+        -14.846,
+        4.3,
+        -11.794
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_0_arch_solid_8",
+      "shape": "obb",
+      "min": [
+        -15.354,
+        4.2,
+        -11.806
+      ],
+      "max": [
+        -14.846,
+        4.3,
+        -11.286
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_0_arch_solid_9",
+      "shape": "obb",
+      "min": [
+        -15.344,
+        4.052,
+        -11.309
+      ],
+      "max": [
+        -14.856,
+        4.3,
+        -10.789
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_0_arch_solid_10",
+      "shape": "obb",
+      "min": [
+        -15.325,
+        3.812,
+        -10.84
+      ],
+      "max": [
+        -14.875,
+        4.3,
+        -10.32
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_0_arch_solid_11",
+      "shape": "obb",
+      "min": [
+        -15.297,
+        3.488,
+        -10.419
+      ],
+      "max": [
+        -14.903,
+        4.3,
+        -9.899
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_0_arch_solid_12",
+      "shape": "obb",
+      "min": [
+        -15.262,
+        3.094,
+        -10.06
+      ],
+      "max": [
+        -14.938,
+        4.3,
+        -9.54
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_0_arch_solid_13",
+      "shape": "obb",
+      "min": [
+        -15.22,
+        2.645,
+        -9.778
+      ],
+      "max": [
+        -14.98,
+        4.3,
+        -9.258
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_0_arch_solid_14",
+      "shape": "obb",
+      "min": [
+        -15.174,
+        2.157,
+        -9.584
+      ],
+      "max": [
+        -15.026,
+        4.3,
+        -9.064
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_0_arch_solid_15",
+      "shape": "obb",
+      "min": [
+        -15.125,
+        1.65,
+        -9.485
+      ],
+      "max": [
+        -15.075,
+        4.3,
+        -8.965
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_0_jamb_-1_solid",
+      "shape": "obb",
+      "min": [
+        -15.26,
+        0.0,
+        -9.365
+      ],
+      "max": [
+        -14.94,
+        1.65,
+        -8.715
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_0_jamb_1_solid",
+      "shape": "obb",
+      "min": [
+        -15.26,
+        0.0,
+        -14.885
+      ],
+      "max": [
+        -14.94,
+        1.65,
+        -14.235
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_1_arch_solid_0",
+      "shape": "obb",
+      "min": [
+        -15.125,
+        1.65,
+        -6.835
+      ],
+      "max": [
+        -15.075,
+        4.3,
+        -6.315
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_1_arch_solid_1",
+      "shape": "obb",
+      "min": [
+        -15.174,
+        2.157,
+        -6.736
+      ],
+      "max": [
+        -15.026,
+        4.3,
+        -6.216
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_1_arch_solid_2",
+      "shape": "obb",
+      "min": [
+        -15.22,
+        2.645,
+        -6.542
+      ],
+      "max": [
+        -14.98,
+        4.3,
+        -6.022
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_1_arch_solid_3",
+      "shape": "obb",
+      "min": [
+        -15.262,
+        3.094,
+        -6.26
+      ],
+      "max": [
+        -14.938,
+        4.3,
+        -5.74
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_1_arch_solid_4",
+      "shape": "obb",
+      "min": [
+        -15.297,
+        3.488,
+        -5.901
+      ],
+      "max": [
+        -14.903,
+        4.3,
+        -5.381
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_1_arch_solid_5",
+      "shape": "obb",
+      "min": [
+        -15.325,
+        3.812,
+        -5.48
+      ],
+      "max": [
+        -14.875,
+        4.3,
+        -4.96
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_1_arch_solid_6",
+      "shape": "obb",
+      "min": [
+        -15.344,
+        4.052,
+        -5.011
+      ],
+      "max": [
+        -14.856,
+        4.3,
+        -4.491
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_1_arch_solid_7",
+      "shape": "obb",
+      "min": [
+        -15.354,
+        4.2,
+        -4.514
+      ],
+      "max": [
+        -14.846,
+        4.3,
+        -3.994
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_1_arch_solid_8",
+      "shape": "obb",
+      "min": [
+        -15.354,
+        4.2,
+        -4.006
+      ],
+      "max": [
+        -14.846,
+        4.3,
+        -3.486
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_1_arch_solid_9",
+      "shape": "obb",
+      "min": [
+        -15.344,
+        4.052,
+        -3.509
+      ],
+      "max": [
+        -14.856,
+        4.3,
+        -2.989
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_1_arch_solid_10",
+      "shape": "obb",
+      "min": [
+        -15.325,
+        3.812,
+        -3.04
+      ],
+      "max": [
+        -14.875,
+        4.3,
+        -2.52
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_1_arch_solid_11",
+      "shape": "obb",
+      "min": [
+        -15.297,
+        3.488,
+        -2.619
+      ],
+      "max": [
+        -14.903,
+        4.3,
+        -2.099
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_1_arch_solid_12",
+      "shape": "obb",
+      "min": [
+        -15.262,
+        3.094,
+        -2.26
+      ],
+      "max": [
+        -14.938,
+        4.3,
+        -1.74
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_1_arch_solid_13",
+      "shape": "obb",
+      "min": [
+        -15.22,
+        2.645,
+        -1.978
+      ],
+      "max": [
+        -14.98,
+        4.3,
+        -1.458
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_1_arch_solid_14",
+      "shape": "obb",
+      "min": [
+        -15.174,
+        2.157,
+        -1.784
+      ],
+      "max": [
+        -15.026,
+        4.3,
+        -1.264
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_1_arch_solid_15",
+      "shape": "obb",
+      "min": [
+        -15.125,
+        1.65,
+        -1.685
+      ],
+      "max": [
+        -15.075,
+        4.3,
+        -1.165
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_1_jamb_-1_solid",
+      "shape": "obb",
+      "min": [
+        -15.26,
+        0.0,
+        -1.565
+      ],
+      "max": [
+        -14.94,
+        1.65,
+        -0.915
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_1_jamb_1_solid",
+      "shape": "obb",
+      "min": [
+        -15.26,
+        0.0,
+        -7.085
+      ],
+      "max": [
+        -14.94,
+        1.65,
+        -6.435
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_2_arch_solid_0",
+      "shape": "obb",
+      "min": [
+        -15.125,
+        1.65,
+        0.965
+      ],
+      "max": [
+        -15.075,
+        4.3,
+        1.485
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_2_arch_solid_1",
+      "shape": "obb",
+      "min": [
+        -15.174,
+        2.157,
+        1.064
+      ],
+      "max": [
+        -15.026,
+        4.3,
+        1.584
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_2_arch_solid_2",
+      "shape": "obb",
+      "min": [
+        -15.22,
+        2.645,
+        1.258
+      ],
+      "max": [
+        -14.98,
+        4.3,
+        1.778
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_2_arch_solid_3",
+      "shape": "obb",
+      "min": [
+        -15.262,
+        3.094,
+        1.54
+      ],
+      "max": [
+        -14.938,
+        4.3,
+        2.06
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_2_arch_solid_4",
+      "shape": "obb",
+      "min": [
+        -15.297,
+        3.488,
+        1.899
+      ],
+      "max": [
+        -14.903,
+        4.3,
+        2.419
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_2_arch_solid_5",
+      "shape": "obb",
+      "min": [
+        -15.325,
+        3.812,
+        2.32
+      ],
+      "max": [
+        -14.875,
+        4.3,
+        2.84
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_2_arch_solid_6",
+      "shape": "obb",
+      "min": [
+        -15.344,
+        4.052,
+        2.789
+      ],
+      "max": [
+        -14.856,
+        4.3,
+        3.309
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_2_arch_solid_7",
+      "shape": "obb",
+      "min": [
+        -15.354,
+        4.2,
+        3.286
+      ],
+      "max": [
+        -14.846,
+        4.3,
+        3.806
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_2_arch_solid_8",
+      "shape": "obb",
+      "min": [
+        -15.354,
+        4.2,
+        3.794
+      ],
+      "max": [
+        -14.846,
+        4.3,
+        4.314
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_2_arch_solid_9",
+      "shape": "obb",
+      "min": [
+        -15.344,
+        4.052,
+        4.291
+      ],
+      "max": [
+        -14.856,
+        4.3,
+        4.811
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_2_arch_solid_10",
+      "shape": "obb",
+      "min": [
+        -15.325,
+        3.812,
+        4.76
+      ],
+      "max": [
+        -14.875,
+        4.3,
+        5.28
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_2_arch_solid_11",
+      "shape": "obb",
+      "min": [
+        -15.297,
+        3.488,
+        5.181
+      ],
+      "max": [
+        -14.903,
+        4.3,
+        5.701
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_2_arch_solid_12",
+      "shape": "obb",
+      "min": [
+        -15.262,
+        3.094,
+        5.54
+      ],
+      "max": [
+        -14.938,
+        4.3,
+        6.06
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_2_arch_solid_13",
+      "shape": "obb",
+      "min": [
+        -15.22,
+        2.645,
+        5.822
+      ],
+      "max": [
+        -14.98,
+        4.3,
+        6.342
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_2_arch_solid_14",
+      "shape": "obb",
+      "min": [
+        -15.174,
+        2.157,
+        6.016
+      ],
+      "max": [
+        -15.026,
+        4.3,
+        6.536
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_2_arch_solid_15",
+      "shape": "obb",
+      "min": [
+        -15.125,
+        1.65,
+        6.115
+      ],
+      "max": [
+        -15.075,
+        4.3,
+        6.635
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_2_jamb_-1_solid",
+      "shape": "obb",
+      "min": [
+        -15.26,
+        0.0,
+        6.235
+      ],
+      "max": [
+        -14.94,
+        1.65,
+        6.885
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_arcade_2_jamb_1_solid",
+      "shape": "obb",
+      "min": [
+        -15.26,
+        0.0,
+        0.715
+      ],
+      "max": [
+        -14.94,
+        1.65,
+        1.365
+      ],
+      "rotationY": 1.5708
+    },
+    {
+      "name": "west_residence_pier_0_solid",
+      "shape": "aabb",
+      "min": [
+        -15.435,
+        0.0,
+        -16.85
+      ],
+      "max": [
+        -14.765,
+        4.3,
+        -14.75
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "west_residence_pier_1_solid",
+      "shape": "aabb",
+      "min": [
+        -15.435,
+        0.0,
+        -9.125
+      ],
+      "max": [
+        -14.765,
+        4.3,
+        -6.675
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "west_residence_pier_2_solid",
+      "shape": "aabb",
+      "min": [
+        -15.435,
+        0.0,
+        -1.325
+      ],
+      "max": [
+        -14.765,
+        4.3,
+        1.125
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "west_residence_pier_3_solid",
+      "shape": "aabb",
+      "min": [
+        -15.435,
+        0.0,
+        6.75
+      ],
+      "max": [
+        -14.765,
+        4.3,
+        8.85
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "east_residence_back_solid",
+      "shape": "aabb",
+      "min": [
+        22.47,
+        0.0,
+        -16.0
+      ],
+      "max": [
+        22.93,
+        8.1,
+        8.0
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "east_residence_end_-1_solid",
+      "shape": "aabb",
+      "min": [
+        14.9,
+        0.0,
+        -16.03
+      ],
+      "max": [
+        22.9,
+        8.1,
+        -15.57
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "east_residence_end_1_solid",
+      "shape": "aabb",
+      "min": [
+        14.9,
+        0.0,
+        7.57
+      ],
+      "max": [
+        22.9,
+        8.1,
+        8.03
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "east_residence_upper_floor_solid",
+      "shape": "aabb",
+      "min": [
+        14.9,
+        4.22,
+        -16.0
+      ],
+      "max": [
+        22.9,
+        4.5,
+        8.0
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "east_residence_upper_front_solid",
+      "shape": "aabb",
+      "min": [
+        14.86,
+        4.425,
+        -16.0
+      ],
+      "max": [
+        15.34,
+        7.975,
+        8.0
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "east_residence_arcade_0_arch_solid_0",
+      "shape": "obb",
+      "min": [
+        15.075,
+        1.65,
+        -9.485
+      ],
+      "max": [
+        15.125,
+        4.3,
+        -8.965
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_0_arch_solid_1",
+      "shape": "obb",
+      "min": [
+        15.026,
+        2.157,
+        -9.584
+      ],
+      "max": [
+        15.174,
+        4.3,
+        -9.064
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_0_arch_solid_2",
+      "shape": "obb",
+      "min": [
+        14.98,
+        2.645,
+        -9.778
+      ],
+      "max": [
+        15.22,
+        4.3,
+        -9.258
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_0_arch_solid_3",
+      "shape": "obb",
+      "min": [
+        14.938,
+        3.094,
+        -10.06
+      ],
+      "max": [
+        15.262,
+        4.3,
+        -9.54
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_0_arch_solid_4",
+      "shape": "obb",
+      "min": [
+        14.903,
+        3.488,
+        -10.419
+      ],
+      "max": [
+        15.297,
+        4.3,
+        -9.899
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_0_arch_solid_5",
+      "shape": "obb",
+      "min": [
+        14.875,
+        3.812,
+        -10.84
+      ],
+      "max": [
+        15.325,
+        4.3,
+        -10.32
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_0_arch_solid_6",
+      "shape": "obb",
+      "min": [
+        14.856,
+        4.052,
+        -11.309
+      ],
+      "max": [
+        15.344,
+        4.3,
+        -10.789
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_0_arch_solid_7",
+      "shape": "obb",
+      "min": [
+        14.846,
+        4.2,
+        -11.806
+      ],
+      "max": [
+        15.354,
+        4.3,
+        -11.286
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_0_arch_solid_8",
+      "shape": "obb",
+      "min": [
+        14.846,
+        4.2,
+        -12.314
+      ],
+      "max": [
+        15.354,
+        4.3,
+        -11.794
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_0_arch_solid_9",
+      "shape": "obb",
+      "min": [
+        14.856,
+        4.052,
+        -12.811
+      ],
+      "max": [
+        15.344,
+        4.3,
+        -12.291
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_0_arch_solid_10",
+      "shape": "obb",
+      "min": [
+        14.875,
+        3.812,
+        -13.28
+      ],
+      "max": [
+        15.325,
+        4.3,
+        -12.76
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_0_arch_solid_11",
+      "shape": "obb",
+      "min": [
+        14.903,
+        3.488,
+        -13.701
+      ],
+      "max": [
+        15.297,
+        4.3,
+        -13.181
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_0_arch_solid_12",
+      "shape": "obb",
+      "min": [
+        14.938,
+        3.094,
+        -14.06
+      ],
+      "max": [
+        15.262,
+        4.3,
+        -13.54
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_0_arch_solid_13",
+      "shape": "obb",
+      "min": [
+        14.98,
+        2.645,
+        -14.342
+      ],
+      "max": [
+        15.22,
+        4.3,
+        -13.822
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_0_arch_solid_14",
+      "shape": "obb",
+      "min": [
+        15.026,
+        2.157,
+        -14.536
+      ],
+      "max": [
+        15.174,
+        4.3,
+        -14.016
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_0_arch_solid_15",
+      "shape": "obb",
+      "min": [
+        15.075,
+        1.65,
+        -14.635
+      ],
+      "max": [
+        15.125,
+        4.3,
+        -14.115
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_0_jamb_-1_solid",
+      "shape": "obb",
+      "min": [
+        14.94,
+        0.0,
+        -14.885
+      ],
+      "max": [
+        15.26,
+        1.65,
+        -14.235
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_0_jamb_1_solid",
+      "shape": "obb",
+      "min": [
+        14.94,
+        0.0,
+        -9.365
+      ],
+      "max": [
+        15.26,
+        1.65,
+        -8.715
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_1_arch_solid_0",
+      "shape": "obb",
+      "min": [
+        15.075,
+        1.65,
+        -1.685
+      ],
+      "max": [
+        15.125,
+        4.3,
+        -1.165
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_1_arch_solid_1",
+      "shape": "obb",
+      "min": [
+        15.026,
+        2.157,
+        -1.784
+      ],
+      "max": [
+        15.174,
+        4.3,
+        -1.264
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_1_arch_solid_2",
+      "shape": "obb",
+      "min": [
+        14.98,
+        2.645,
+        -1.978
+      ],
+      "max": [
+        15.22,
+        4.3,
+        -1.458
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_1_arch_solid_3",
+      "shape": "obb",
+      "min": [
+        14.938,
+        3.094,
+        -2.26
+      ],
+      "max": [
+        15.262,
+        4.3,
+        -1.74
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_1_arch_solid_4",
+      "shape": "obb",
+      "min": [
+        14.903,
+        3.488,
+        -2.619
+      ],
+      "max": [
+        15.297,
+        4.3,
+        -2.099
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_1_arch_solid_5",
+      "shape": "obb",
+      "min": [
+        14.875,
+        3.812,
+        -3.04
+      ],
+      "max": [
+        15.325,
+        4.3,
+        -2.52
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_1_arch_solid_6",
+      "shape": "obb",
+      "min": [
+        14.856,
+        4.052,
+        -3.509
+      ],
+      "max": [
+        15.344,
+        4.3,
+        -2.989
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_1_arch_solid_7",
+      "shape": "obb",
+      "min": [
+        14.846,
+        4.2,
+        -4.006
+      ],
+      "max": [
+        15.354,
+        4.3,
+        -3.486
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_1_arch_solid_8",
+      "shape": "obb",
+      "min": [
+        14.846,
+        4.2,
+        -4.514
+      ],
+      "max": [
+        15.354,
+        4.3,
+        -3.994
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_1_arch_solid_9",
+      "shape": "obb",
+      "min": [
+        14.856,
+        4.052,
+        -5.011
+      ],
+      "max": [
+        15.344,
+        4.3,
+        -4.491
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_1_arch_solid_10",
+      "shape": "obb",
+      "min": [
+        14.875,
+        3.812,
+        -5.48
+      ],
+      "max": [
+        15.325,
+        4.3,
+        -4.96
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_1_arch_solid_11",
+      "shape": "obb",
+      "min": [
+        14.903,
+        3.488,
+        -5.901
+      ],
+      "max": [
+        15.297,
+        4.3,
+        -5.381
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_1_arch_solid_12",
+      "shape": "obb",
+      "min": [
+        14.938,
+        3.094,
+        -6.26
+      ],
+      "max": [
+        15.262,
+        4.3,
+        -5.74
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_1_arch_solid_13",
+      "shape": "obb",
+      "min": [
+        14.98,
+        2.645,
+        -6.542
+      ],
+      "max": [
+        15.22,
+        4.3,
+        -6.022
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_1_arch_solid_14",
+      "shape": "obb",
+      "min": [
+        15.026,
+        2.157,
+        -6.736
+      ],
+      "max": [
+        15.174,
+        4.3,
+        -6.216
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_1_arch_solid_15",
+      "shape": "obb",
+      "min": [
+        15.075,
+        1.65,
+        -6.835
+      ],
+      "max": [
+        15.125,
+        4.3,
+        -6.315
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_1_jamb_-1_solid",
+      "shape": "obb",
+      "min": [
+        14.94,
+        0.0,
+        -7.085
+      ],
+      "max": [
+        15.26,
+        1.65,
+        -6.435
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_1_jamb_1_solid",
+      "shape": "obb",
+      "min": [
+        14.94,
+        0.0,
+        -1.565
+      ],
+      "max": [
+        15.26,
+        1.65,
+        -0.915
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_2_arch_solid_0",
+      "shape": "obb",
+      "min": [
+        15.075,
+        1.65,
+        6.115
+      ],
+      "max": [
+        15.125,
+        4.3,
+        6.635
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_2_arch_solid_1",
+      "shape": "obb",
+      "min": [
+        15.026,
+        2.157,
+        6.016
+      ],
+      "max": [
+        15.174,
+        4.3,
+        6.536
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_2_arch_solid_2",
+      "shape": "obb",
+      "min": [
+        14.98,
+        2.645,
+        5.822
+      ],
+      "max": [
+        15.22,
+        4.3,
+        6.342
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_2_arch_solid_3",
+      "shape": "obb",
+      "min": [
+        14.938,
+        3.094,
+        5.54
+      ],
+      "max": [
+        15.262,
+        4.3,
+        6.06
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_2_arch_solid_4",
+      "shape": "obb",
+      "min": [
+        14.903,
+        3.488,
+        5.181
+      ],
+      "max": [
+        15.297,
+        4.3,
+        5.701
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_2_arch_solid_5",
+      "shape": "obb",
+      "min": [
+        14.875,
+        3.812,
+        4.76
+      ],
+      "max": [
+        15.325,
+        4.3,
+        5.28
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_2_arch_solid_6",
+      "shape": "obb",
+      "min": [
+        14.856,
+        4.052,
+        4.291
+      ],
+      "max": [
+        15.344,
+        4.3,
+        4.811
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_2_arch_solid_7",
+      "shape": "obb",
+      "min": [
+        14.846,
+        4.2,
+        3.794
+      ],
+      "max": [
+        15.354,
+        4.3,
+        4.314
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_2_arch_solid_8",
+      "shape": "obb",
+      "min": [
+        14.846,
+        4.2,
+        3.286
+      ],
+      "max": [
+        15.354,
+        4.3,
+        3.806
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_2_arch_solid_9",
+      "shape": "obb",
+      "min": [
+        14.856,
+        4.052,
+        2.789
+      ],
+      "max": [
+        15.344,
+        4.3,
+        3.309
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_2_arch_solid_10",
+      "shape": "obb",
+      "min": [
+        14.875,
+        3.812,
+        2.32
+      ],
+      "max": [
+        15.325,
+        4.3,
+        2.84
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_2_arch_solid_11",
+      "shape": "obb",
+      "min": [
+        14.903,
+        3.488,
+        1.899
+      ],
+      "max": [
+        15.297,
+        4.3,
+        2.419
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_2_arch_solid_12",
+      "shape": "obb",
+      "min": [
+        14.938,
+        3.094,
+        1.54
+      ],
+      "max": [
+        15.262,
+        4.3,
+        2.06
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_2_arch_solid_13",
+      "shape": "obb",
+      "min": [
+        14.98,
+        2.645,
+        1.258
+      ],
+      "max": [
+        15.22,
+        4.3,
+        1.778
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_2_arch_solid_14",
+      "shape": "obb",
+      "min": [
+        15.026,
+        2.157,
+        1.064
+      ],
+      "max": [
+        15.174,
+        4.3,
+        1.584
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_2_arch_solid_15",
+      "shape": "obb",
+      "min": [
+        15.075,
+        1.65,
+        0.965
+      ],
+      "max": [
+        15.125,
+        4.3,
+        1.485
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_2_jamb_-1_solid",
+      "shape": "obb",
+      "min": [
+        14.94,
+        0.0,
+        0.715
+      ],
+      "max": [
+        15.26,
+        1.65,
+        1.365
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_arcade_2_jamb_1_solid",
+      "shape": "obb",
+      "min": [
+        14.94,
+        0.0,
+        6.235
+      ],
+      "max": [
+        15.26,
+        1.65,
+        6.885
+      ],
+      "rotationY": -1.5708
+    },
+    {
+      "name": "east_residence_pier_0_solid",
+      "shape": "aabb",
+      "min": [
+        14.765,
+        0.0,
+        -16.85
+      ],
+      "max": [
+        15.435,
+        4.3,
+        -14.75
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "east_residence_pier_1_solid",
+      "shape": "aabb",
+      "min": [
+        14.765,
+        0.0,
+        -9.125
+      ],
+      "max": [
+        15.435,
+        4.3,
+        -6.675
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "east_residence_pier_2_solid",
+      "shape": "aabb",
+      "min": [
+        14.765,
+        0.0,
+        -1.325
+      ],
+      "max": [
+        15.435,
+        4.3,
+        1.125
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "east_residence_pier_3_solid",
+      "shape": "aabb",
+      "min": [
+        14.765,
+        0.0,
+        6.75
+      ],
+      "max": [
+        15.435,
+        4.3,
+        8.85
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_arch_solid_0",
+      "shape": "aabb",
+      "min": [
+        1.962,
+        2.15,
+        13.35
+      ],
+      "max": [
+        2.0,
+        5.65,
+        14.05
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_arch_solid_1",
+      "shape": "aabb",
+      "min": [
+        1.848,
+        2.54,
+        13.35
+      ],
+      "max": [
+        1.962,
+        5.65,
+        14.05
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_arch_solid_2",
+      "shape": "aabb",
+      "min": [
+        1.663,
+        2.915,
+        13.35
+      ],
+      "max": [
+        1.848,
+        5.65,
+        14.05
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_arch_solid_3",
+      "shape": "aabb",
+      "min": [
+        1.414,
+        3.261,
+        13.35
+      ],
+      "max": [
+        1.663,
+        5.65,
+        14.05
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_arch_solid_4",
+      "shape": "aabb",
+      "min": [
+        1.111,
+        3.564,
+        13.35
+      ],
+      "max": [
+        1.414,
+        5.65,
+        14.05
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_arch_solid_5",
+      "shape": "aabb",
+      "min": [
+        0.765,
+        3.813,
+        13.35
+      ],
+      "max": [
+        1.111,
+        5.65,
+        14.05
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_arch_solid_6",
+      "shape": "aabb",
+      "min": [
+        0.39,
+        3.998,
+        13.35
+      ],
+      "max": [
+        0.765,
+        5.65,
+        14.05
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_arch_solid_7",
+      "shape": "aabb",
+      "min": [
+        0.0,
+        4.112,
+        13.35
+      ],
+      "max": [
+        0.39,
+        5.65,
+        14.05
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_arch_solid_8",
+      "shape": "aabb",
+      "min": [
+        -0.39,
+        4.112,
+        13.35
+      ],
+      "max": [
+        0.0,
+        5.65,
+        14.05
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_arch_solid_9",
+      "shape": "aabb",
+      "min": [
+        -0.765,
+        3.998,
+        13.35
+      ],
+      "max": [
+        -0.39,
+        5.65,
+        14.05
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_arch_solid_10",
+      "shape": "aabb",
+      "min": [
+        -1.111,
+        3.813,
+        13.35
+      ],
+      "max": [
+        -0.765,
+        5.65,
+        14.05
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_arch_solid_11",
+      "shape": "aabb",
+      "min": [
+        -1.414,
+        3.564,
+        13.35
+      ],
+      "max": [
+        -1.111,
+        5.65,
+        14.05
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_arch_solid_12",
+      "shape": "aabb",
+      "min": [
+        -1.663,
+        3.261,
+        13.35
+      ],
+      "max": [
+        -1.414,
+        5.65,
+        14.05
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_arch_solid_13",
+      "shape": "aabb",
+      "min": [
+        -1.848,
+        2.915,
+        13.35
+      ],
+      "max": [
+        -1.663,
+        5.65,
+        14.05
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_arch_solid_14",
+      "shape": "aabb",
+      "min": [
+        -1.962,
+        2.54,
+        13.35
+      ],
+      "max": [
+        -1.848,
+        5.65,
+        14.05
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_arch_solid_15",
+      "shape": "aabb",
+      "min": [
+        -2.0,
+        2.15,
+        13.35
+      ],
+      "max": [
+        -1.962,
+        5.65,
+        14.05
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_jamb_-1_solid",
+      "shape": "aabb",
+      "min": [
+        -2.32,
+        0.0,
+        13.285
+      ],
+      "max": [
+        -2.0,
+        2.15,
+        14.115
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_jamb_1_solid",
+      "shape": "aabb",
+      "min": [
+        2.0,
+        0.0,
+        13.285
+      ],
+      "max": [
+        2.32,
+        2.15,
+        14.115
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_wing_-1_solid",
+      "shape": "aabb",
+      "min": [
+        -7.7,
+        0.0,
+        13.35
+      ],
+      "max": [
+        -2.1,
+        5.65,
+        14.05
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_wing_1_solid",
+      "shape": "aabb",
+      "min": [
+        2.1,
+        0.0,
+        13.35
+      ],
+      "max": [
+        7.7,
+        5.65,
+        14.05
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_roof_solid",
+      "shape": "aabb",
+      "min": [
+        -7.65,
+        5.655,
+        13.31
+      ],
+      "max": [
+        7.65,
+        5.905,
+        17.61
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_rear_pier_-1_solid",
+      "shape": "aabb",
+      "min": [
+        -7.425,
+        0.0,
+        16.675
+      ],
+      "max": [
+        -6.775,
+        5.7,
+        17.325
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "south_gate_rear_pier_1_solid",
+      "shape": "aabb",
+      "min": [
+        6.775,
+        0.0,
+        16.675
+      ],
+      "max": [
+        7.425,
+        5.7,
+        17.325
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_arch_solid_0",
+      "shape": "aabb",
+      "min": [
+        1.962,
+        2.15,
+        -22.05
+      ],
+      "max": [
+        2.0,
+        5.65,
+        -21.35
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_arch_solid_1",
+      "shape": "aabb",
+      "min": [
+        1.848,
+        2.54,
+        -22.05
+      ],
+      "max": [
+        1.962,
+        5.65,
+        -21.35
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_arch_solid_2",
+      "shape": "aabb",
+      "min": [
+        1.663,
+        2.915,
+        -22.05
+      ],
+      "max": [
+        1.848,
+        5.65,
+        -21.35
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_arch_solid_3",
+      "shape": "aabb",
+      "min": [
+        1.414,
+        3.261,
+        -22.05
+      ],
+      "max": [
+        1.663,
+        5.65,
+        -21.35
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_arch_solid_4",
+      "shape": "aabb",
+      "min": [
+        1.111,
+        3.564,
+        -22.05
+      ],
+      "max": [
+        1.414,
+        5.65,
+        -21.35
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_arch_solid_5",
+      "shape": "aabb",
+      "min": [
+        0.765,
+        3.813,
+        -22.05
+      ],
+      "max": [
+        1.111,
+        5.65,
+        -21.35
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_arch_solid_6",
+      "shape": "aabb",
+      "min": [
+        0.39,
+        3.998,
+        -22.05
+      ],
+      "max": [
+        0.765,
+        5.65,
+        -21.35
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_arch_solid_7",
+      "shape": "aabb",
+      "min": [
+        0.0,
+        4.112,
+        -22.05
+      ],
+      "max": [
+        0.39,
+        5.65,
+        -21.35
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_arch_solid_8",
+      "shape": "aabb",
+      "min": [
+        -0.39,
+        4.112,
+        -22.05
+      ],
+      "max": [
+        0.0,
+        5.65,
+        -21.35
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_arch_solid_9",
+      "shape": "aabb",
+      "min": [
+        -0.765,
+        3.998,
+        -22.05
+      ],
+      "max": [
+        -0.39,
+        5.65,
+        -21.35
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_arch_solid_10",
+      "shape": "aabb",
+      "min": [
+        -1.111,
+        3.813,
+        -22.05
+      ],
+      "max": [
+        -0.765,
+        5.65,
+        -21.35
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_arch_solid_11",
+      "shape": "aabb",
+      "min": [
+        -1.414,
+        3.564,
+        -22.05
+      ],
+      "max": [
+        -1.111,
+        5.65,
+        -21.35
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_arch_solid_12",
+      "shape": "aabb",
+      "min": [
+        -1.663,
+        3.261,
+        -22.05
+      ],
+      "max": [
+        -1.414,
+        5.65,
+        -21.35
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_arch_solid_13",
+      "shape": "aabb",
+      "min": [
+        -1.848,
+        2.915,
+        -22.05
+      ],
+      "max": [
+        -1.663,
+        5.65,
+        -21.35
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_arch_solid_14",
+      "shape": "aabb",
+      "min": [
+        -1.962,
+        2.54,
+        -22.05
+      ],
+      "max": [
+        -1.848,
+        5.65,
+        -21.35
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_arch_solid_15",
+      "shape": "aabb",
+      "min": [
+        -2.0,
+        2.15,
+        -22.05
+      ],
+      "max": [
+        -1.962,
+        5.65,
+        -21.35
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_jamb_-1_solid",
+      "shape": "aabb",
+      "min": [
+        -2.32,
+        0.0,
+        -22.115
+      ],
+      "max": [
+        -2.0,
+        2.15,
+        -21.285
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_jamb_1_solid",
+      "shape": "aabb",
+      "min": [
+        2.0,
+        0.0,
+        -22.115
+      ],
+      "max": [
+        2.32,
+        2.15,
+        -21.285
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_wing_-1_solid",
+      "shape": "aabb",
+      "min": [
+        -7.7,
+        0.0,
+        -22.05
+      ],
+      "max": [
+        -2.1,
+        5.65,
+        -21.35
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_wing_1_solid",
+      "shape": "aabb",
+      "min": [
+        2.1,
+        0.0,
+        -22.05
+      ],
+      "max": [
+        7.7,
+        5.65,
+        -21.35
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_roof_solid",
+      "shape": "aabb",
+      "min": [
+        -7.65,
+        5.655,
+        -25.61
+      ],
+      "max": [
+        7.65,
+        5.905,
+        -21.31
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_rear_pier_-1_solid",
+      "shape": "aabb",
+      "min": [
+        -7.425,
+        0.0,
+        -25.325
+      ],
+      "max": [
+        -6.775,
+        5.7,
+        -24.675
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "north_gate_rear_pier_1_solid",
+      "shape": "aabb",
+      "min": [
+        6.775,
+        0.0,
+        -25.325
+      ],
+      "max": [
+        7.425,
+        5.7,
+        -24.675
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "fountain_basin_solid",
+      "shape": "aabb",
+      "min": [
+        -2.7,
+        0,
+        -6.7
+      ],
+      "max": [
+        2.7,
+        0.78,
+        -1.3
+      ],
+      "rotationY": 0.0
+    },
+    {
+      "name": "fountain_column_solid",
+      "shape": "aabb",
+      "min": [
+        -0.5,
+        0.78,
+        -4.5
+      ],
+      "max": [
+        0.5,
+        1.95,
+        -3.5
+      ],
+      "rotationY": 0.0
+    },
+    {
+      "name": "supply_crate_0_solid",
+      "shape": "obb",
+      "min": [
+        -6.775,
+        0.0,
+        5.39
+      ],
+      "max": [
+        -5.425,
+        1.45,
+        6.61
+      ],
+      "rotationY": 0.28
+    },
+    {
+      "name": "supply_low_0_solid",
+      "shape": "obb",
+      "min": [
+        -5.526,
+        0.0,
+        5.031
+      ],
+      "max": [
+        -4.176,
+        0.8,
+        6.251
+      ],
+      "rotationY": 0.28
+    },
+    {
+      "name": "supply_crate_1_solid",
+      "shape": "obb",
+      "min": [
+        5.425,
+        0.0,
+        -14.61
+      ],
+      "max": [
+        6.775,
+        1.45,
+        -13.39
+      ],
+      "rotationY": -0.28
+    },
+    {
+      "name": "supply_low_1_solid",
+      "shape": "obb",
+      "min": [
+        6.674,
+        0.0,
+        -14.251
+      ],
+      "max": [
+        8.024,
+        0.8,
+        -13.031
+      ],
+      "rotationY": -0.28
+    },
+    {
+      "name": "supply_crate_2_solid",
+      "shape": "obb",
+      "min": [
+        -8.475,
+        0.0,
+        -4.61
+      ],
+      "max": [
+        -7.125,
+        1.45,
+        -3.39
+      ],
+      "rotationY": 0.05
+    },
+    {
+      "name": "supply_low_2_solid",
+      "shape": "obb",
+      "min": [
+        -7.177,
+        0.0,
+        -4.675
+      ],
+      "max": [
+        -5.827,
+        0.8,
+        -3.455
+      ],
+      "rotationY": 0.05
+    },
+    {
+      "name": "supply_crate_3_solid",
+      "shape": "obb",
+      "min": [
+        7.125,
+        0.0,
+        -4.61
+      ],
+      "max": [
+        8.475,
+        1.45,
+        -3.39
+      ],
+      "rotationY": -0.05
+    },
+    {
+      "name": "supply_low_3_solid",
+      "shape": "obb",
+      "min": [
+        8.423,
+        0.0,
+        -4.545
+      ],
+      "max": [
+        9.773,
+        0.8,
+        -3.325
+      ],
+      "rotationY": -0.05
+    },
+    {
+      "name": "planter_0_body_solid",
+      "shape": "aabb",
+      "min": [
+        -11.25,
+        0.0,
+        7.5
+      ],
+      "max": [
+        -9.15,
+        0.6,
+        8.5
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "planter_1_body_solid",
+      "shape": "aabb",
+      "min": [
+        9.15,
+        0.0,
+        -16.5
+      ],
+      "max": [
+        11.25,
+        0.6,
+        -15.5
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "planter_2_body_solid",
+      "shape": "aabb",
+      "min": [
+        -11.25,
+        0.0,
+        -16.5
+      ],
+      "max": [
+        -9.15,
+        0.6,
+        -15.5
+      ],
+      "rotationY": 0
+    },
+    {
+      "name": "planter_3_body_solid",
+      "shape": "aabb",
+      "min": [
+        9.15,
+        0.0,
+        7.5
+      ],
+      "max": [
+        11.25,
+        0.6,
+        8.5
+      ],
+      "rotationY": 0
+    }
+  ]
+}

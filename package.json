@@ -16,6 +16,7 @@
     "check:deploy": "node scripts/check-deployment.mjs",
     "check:movement": "node scripts/check-player-movement.mjs",
     "check:smoke": "node scripts/check-production-smoke.mjs",
+    "check:hd": "node --check src/hd/hd-arena.js && node --check src/hd/entry.js && node --test --test-concurrency=1 scripts/check-hd-combat.test.mjs scripts/check-hd-movement.test.mjs && node scripts/check-hd-assets.mjs",
     "check": "node --check src/main.js && node --check src/services/account-service.js && node --check server/duel-server.js && node --check server/production-server.js && node --check scripts/check-production-smoke.mjs && node --check scripts/check-player-movement.mjs && node --check scripts/check-player-collision.mjs && pnpm run check:bot && pnpm run check:collision && pnpm run check:movement && pnpm run check:deploy && vite build && pnpm run check:smoke"
   },
   "engines": {
